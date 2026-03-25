@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIH Funding Flow</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Source Sans Pro', -apple-system, sans-serif;
+    background: rgba(10, 20, 18, 0.95);
+}
+.container {
+    padding: 0.75rem 1rem;
+    max-width: 100%;
+}
+.header {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+.header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e8e4dc;
+    margin-bottom: 0.15rem;
+}
+.header .subtitle {
+    font-size: 0.8rem;
+    color: rgba(232, 228, 220, 0.55);
+}
+#sankey-chart {
+    width: 100%;
+    height: 220px;
+}
+.node text {
+    font-family: 'Source Sans Pro', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+}
+.link {
+    fill: none;
+    stroke-opacity: 0.45;
+}
+.link:hover {
+    stroke-opacity: 0.75;
+}
+.tooltip {
+    position: fixed;
+    background: rgba(20, 38, 35, 0.95);
+    color: #e8e4dc;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 200px;
+    border: 1px solid rgba(70, 179, 169, 0.3);
+}
+.insight-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 6px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+    height: 26px;
+    border: 1px solid rgba(70, 179, 169, 0.2);
+}
+.insight-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #e8e4dc;
+}
+.segment-bio {
+    background: rgba(70, 179, 169, 0.7);
+    flex: 62;
+}
+.segment-clinical {
+    background: rgba(212, 197, 169, 0.5);
+    flex: 34.6;
+}
+.segment-env {
+    background: rgba(239, 68, 68, 0.7);
+    flex: 3.4;
+}
+.insight-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.25rem;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    color: rgba(232, 228, 220, 0.6);
+}
+.insight-legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.insight-legend .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>$6.6B NIH Funding by Research Type</h2>
+        <div class="subtitle">How funding flows from disease areas to research categories</div>
+    </div>
+    <div id="sankey-chart"></div>
+    <div class="insight-bar">
+        <div class="insight-segment segment-bio">Biological 62%</div>
+        <div class="insight-segment segment-clinical">Clinical 34%</div>
+        <div class="insight-segment segment-env">3%</div>
+    </div>
+    <div class="insight-legend">
+        <span><div class="dot" style="background: rgba(70, 179, 169, 0.8);"></div> Biological Mechanisms</span>
+        <span><div class="dot" style="background: rgba(212, 197, 169, 0.6);"></div> Clinical & Other</span>
+        <span><div class="dot" style="background: rgba(239, 68, 68, 0.8);"></div> Environmental Factors</span>
+    </div>
+</div>
+<div class="tooltip" style="display: none;"></div>
+
+<script>
+const data = [
+    { disease: "Breast Cancer", total: 740, mech: 346, env: 15, other: 379 },
+    { disease: "Colorectal Cancer", total: 338, mech: 144, env: 23, other: 171 },
+    { disease: "Lung Cancer", total: 492, mech: 230, env: 48, other: 214 },
+    { disease: "ALS", total: 234, mech: 128, env: 2, other: 105 },
+    { disease: "Parkinson's", total: 253, mech: 149, env: 13, other: 91 },
+    { disease: "Liver Disease", total: 945, mech: 621, env: 21, other: 302 },
+    { disease: "Contraception", total: 739, mech: 237, env: 37, other: 465 },
+    { disease: "Biodefense", total: 2884, mech: 1784, env: 44, other: 1056 }
+];
+
+const margin = { top: 5, right: 5, bottom: 5, left: 5 };
+const container = document.getElementById('sankey-chart');
+const width = container.offsetWidth - margin.left - margin.right;
+const height = 220 - margin.top - margin.bottom;
+
+const svg = d3.select('#sankey-chart')
+    .append('svg')
+    .attr('width', width + margin.left + margin.right)
+    .attr('height', height + margin.top + margin.bottom)
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+// Build nodes and links
+const nodes = [
+    ...data.map(d => ({ name: d.disease, type: 'disease' })),
+    { name: 'Biological\nMechanisms', type: 'category', color: 'rgba(70, 179, 169, 0.85)' },
+    { name: 'Clinical &\nOther', type: 'category', color: 'rgba(212, 197, 169, 0.65)' },
+    { name: 'Environmental\nFactors', type: 'category', color: 'rgba(239, 68, 68, 0.85)' }
+];
+
+const links = [];
+data.forEach((d, i) => {
+    links.push({ source: i, target: data.length, value: d.mech });
+    links.push({ source: i, target: data.length + 1, value: d.other });
+    links.push({ source: i, target: data.length + 2, value: d.env });
+});
+
+const sankey = d3.sankey()
+    .nodeWidth(10)
+    .nodePadding(6)
+    .extent([[0, 0], [width, height]]);
+
+const { nodes: sankeyNodes, links: sankeyLinks } = sankey({
+    nodes: nodes.map(d => Object.assign({}, d)),
+    links: links.map(d => Object.assign({}, d))
+});
+
+// Disease node colors - muted to match dark theme
+const diseaseColors = d3.scaleOrdinal()
+    .domain(data.map(d => d.disease))
+    .range(['#7a9e9f', '#8fa67a', '#b8a67a', '#7a8fa6', '#9f7a8f', '#8a9a7a', '#9a8a7a', '#7a8a9a']);
+
+const categoryColors = {
+    'Biological\nMechanisms': 'rgba(70, 179, 169, 0.85)',
+    'Clinical &\nOther': 'rgba(212, 197, 169, 0.65)',
+    'Environmental\nFactors': 'rgba(239, 68, 68, 0.85)'
+};
+
+// Draw links
+svg.append('g')
+    .selectAll('.link')
+    .data(sankeyLinks)
+    .join('path')
+    .attr('class', 'link')
+    .attr('d', d3.sankeyLinkHorizontal())
+    .attr('stroke', d => categoryColors[d.target.name] || 'rgba(70, 179, 169, 0.4)')
+    .attr('stroke-width', d => Math.max(1, d.width))
+    .on('mouseover', function(event, d) {
+        const tooltip = document.querySelector('.tooltip');
+        tooltip.style.display = 'block';
+        tooltip.innerHTML = `<strong>${d.source.name}</strong> → ${d.target.name.replace('\n', ' ')}<br>$${d.value}M`;
+        tooltip.style.left = event.clientX + 10 + 'px';
+        tooltip.style.top = event.clientY - 10 + 'px';
+    })
+    .on('mouseout', () => { document.querySelector('.tooltip').style.display = 'none'; });
+
+// Draw nodes
+const node = svg.append('g')
+    .selectAll('.node')
+    .data(sankeyNodes)
+    .join('g')
+    .attr('class', 'node')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+node.append('rect')
+    .attr('height', d => d.y1 - d.y0)
+    .attr('width', sankey.nodeWidth())
+    .attr('fill', d => d.color || diseaseColors(d.name))
+    .attr('opacity', 0.9)
+    .attr('rx', 2);
+
+node.append('text')
+    .attr('x', d => d.x0 < width / 2 ? sankey.nodeWidth() + 4 : -4)
+    .attr('y', d => (d.y1 - d.y0) / 2)
+    .attr('dy', '0.35em')
+    .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+    .text(d => d.name.replace('\n', ' '))
+    .attr('fill', 'rgba(232, 228, 220, 0.8)');
+</script>
+</body>
+</html>

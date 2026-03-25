@@ -1,8 +1,17 @@
 # Grant Classification Workflows
 
-Two workflows for classifying research grants by mechanism of harm and exposure type.
+Workflows and visualizations for classifying research grants by mechanism of harm and exposure type.
 
-**Note:** This repo contains the **classification workflows** (scripts, methodology, prompts). For the **classified data and gap analysis**, see the [envirotox repo](https://github.com/SIDaniels/envirotox).
+**Note:** This repo contains the **classification workflows** (scripts, methodology, prompts) AND **visualization reproduction** (data, HTML, scripts). For the **classified data and gap analysis**, see the [envirotox repo](https://github.com/SIDaniels/envirotox).
+
+## Visualizations
+
+This repo can reproduce these two pages:
+
+| Page | Folder | Description |
+|------|--------|-------------|
+| [/evidence/funding](https://www.engineeredresilience.org/evidence/funding) | `federal_funding_viz/` | NIH/EPA/NSF Sankey showing <1% goes to environmental health |
+| [/evidence/methods/nih](https://www.engineeredresilience.org/evidence/methods/nih) | `nih_disease_viz/` | NIH disease Sankey showing 3.4% goes to environmental factors |
 
 ---
 
@@ -33,6 +42,24 @@ Two workflows for classifying research grants by mechanism of harm and exposure 
 ```
 grant_classification_workflows/
 ├── README.md
+│
+├── federal_funding_viz/              # → engineeredresilience.org/evidence/funding
+│   ├── data/
+│   │   ├── NIH_NSF_EPA.csv           # Historical agency funding
+│   │   └── agency_grants/            # EPA/NSF classified samples
+│   └── visualization/
+│       ├── sankey_mini.html          # D3.js Sankey diagram
+│       └── funding_content.html
+│
+├── nih_disease_viz/                  # → engineeredresilience.org/evidence/methods/nih
+│   ├── regenerate_viz_data.py        # Script to generate Sankey data
+│   ├── data/
+│   │   ├── sankey_full_data_v2.json  # Aggregated Sankey data
+│   │   └── disease_grants/           # 8 disease CSVs
+│   └── visualization/
+│       ├── nih_disease_funding_widget.html
+│       ├── viz_sankey_with_heatmap.html
+│       └── ENV_Sankey_FullGap_v2.html
 │
 ├── nih_mechanism_classification/     # Workflow 1: NIH by mechanism
 │   ├── methodology/                  # Classification guides & decision trees

@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Follow the Money: NIH Grant Funding Flow</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+
+<style>
+:root {
+    --color-mechanistic: #1e3a5f;
+    --color-everything-else: #7f8c9a;
+    --color-environmental: #e63946;
+    --color-bg: #fafafa;
+    --color-text: #1a1a1a;
+    --color-text-muted: #666;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1rem;
+    color: var(--color-text-muted);
+}
+
+/* Sankey */
+#sankey-chart {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.node rect {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.node rect:hover {
+    opacity: 0.8;
+}
+
+.node.clickable rect {
+    stroke: #333;
+    stroke-width: 2px;
+    stroke-dasharray: 4,2;
+}
+
+.node.selected rect {
+    stroke: #000;
+    stroke-width: 3px;
+    stroke-dasharray: none;
+}
+
+.node text {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.link {
+    fill: none;
+    stroke-opacity: 0.35;
+    transition: stroke-opacity 0.2s;
+}
+
+.link:hover {
+    stroke-opacity: 0.6;
+}
+
+.link.highlighted {
+    stroke-opacity: 0.7;
+}
+
+.link.dimmed {
+    stroke-opacity: 0.1;
+}
+
+/* Click instruction */
+.click-instruction {
+    text-align: center;
+    padding: 1rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    background: #f0f0f0;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.click-instruction strong {
+    color: var(--color-text);
+}
+
+/* Heatmap section */
+#heatmap-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 1.5rem;
+    display: none;
+}
+
+#heatmap-section.visible {
+    display: block;
+}
+
+.heatmap-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.heatmap-header h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.heatmap-total {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.heatmap-total.environmental { color: var(--color-environmental); }
+.heatmap-total.mechanistic { color: var(--color-mechanistic); }
+.heatmap-total.everything-else { color: var(--color-everything-else); }
+
+.heatmap-subtitle {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Heatmap table */
+.heatmap-container {
+    overflow-x: auto;
+}
+
+.heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.heatmap-table th {
+    padding: 0.5rem 0.4rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 2px solid #ddd;
+    background: #f8f8f8;
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+}
+
+.heatmap-table th:first-child {
+    text-align: left;
+    min-width: 100px;
+}
+
+.heatmap-table th.col-header {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.3rem;
+}
+
+.heatmap-table td {
+    padding: 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    position: relative;
+}
+
+.heatmap-table td:first-child {
+    text-align: left;
+    font-weight: 500;
+    background: #fafafa;
+}
+
+.heatmap-table tr:hover td {
+    background-color: rgba(0,0,0,0.02);
+}
+
+.heatmap-cell {
+    padding: 0.4rem 0.2rem;
+    border-radius: 4px;
+    min-width: 60px;
+    transition: transform 0.2s;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.heatmap-cell .amount {
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: block;
+}
+
+.heatmap-cell .pct {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.heatmap-cell.zero {
+    background: #f5f5f5;
+    color: #bbb;
+}
+
+/* Row totals */
+.row-total {
+    font-weight: 600;
+    background: #f0f0f0 !important;
+}
+
+/* Column totals row */
+.heatmap-table tfoot td {
+    font-weight: 600;
+    background: #f0f0f0;
+    border-top: 2px solid #ddd;
+}
+
+.heatmap-table .category-header td {
+    padding: 0.75rem 0.5rem;
+    border-top: 2px solid #ddd;
+}
+
+/* Legend */
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8f8f8;
+    border-radius: 8px;
+    font-size: 0.8rem;
+}
+
+.legend-gradient {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legend-gradient-bar {
+    width: 150px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+/* Key insight callout */
+.insight-callout {
+    margin-top: 1.5rem;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+    border-left: 4px solid var(--color-environmental);
+    border-radius: 0 8px 8px 0;
+}
+
+.insight-callout h3 {
+    font-size: 1rem;
+    color: var(--color-environmental);
+    margin-bottom: 0.5rem;
+}
+
+.insight-callout p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.insight-callout .highlight {
+    color: var(--color-environmental);
+    font-weight: 600;
+}
+
+/* Tooltip */
+.tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    pointer-events: none;
+    z-index: 100;
+    max-width: 280px;
+}
+
+footer {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #ddd;
+}
+</style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Follow the Money</h1>
+            <p class="subtitle">$6.6 Billion in NIH research funding across 8 disease areas</p>
+        </header>
+
+        <div id="sankey-chart"></div>
+
+        <div class="click-instruction">
+            Click on a specific <strong>condition</strong> on the left side or a <strong>category</strong> on the right side to see the detailed breakdown below.
+        </div>
+
+        <div id="heatmap-section">
+            <div class="heatmap-header">
+                <h2 id="heatmap-title">Environmental Factors Breakdown</h2>
+                <div class="heatmap-total" id="heatmap-total">$225.9M</div>
+            </div>
+            <p class="heatmap-subtitle" id="heatmap-subtitle">Dollar amounts by disease area and exposure type. Percentage of category total in parentheses.</p>
+
+            <div class="heatmap-container">
+                <table class="heatmap-table" id="heatmap-table">
+                    <!-- Generated by JavaScript -->
+                </table>
+            </div>
+
+            <div class="heatmap-legend">
+                <span>Funding level:</span>
+                <div class="legend-gradient">
+                    <span>$0</span>
+                    <div class="legend-gradient-bar" id="legend-gradient"></div>
+                    <span id="legend-max">Max</span>
+                </div>
+            </div>
+
+            <div class="insight-callout" id="insight-callout">
+                <!-- Generated by JavaScript -->
+            </div>
+        </div>
+
+        <footer>
+            <p>Data: NIH Grant Classification Analysis | Click category nodes to explore</p>
+        </footer>
+    </div>
+
+    <div class="tooltip" style="display: none;"></div>
+
+<script>
+// Data
+const categoryData = [
+    // Cancers
+    { disease: "Breast Cancer", total: 740070443, mechanistic: 346178277, environmental: 15247003, everything_else: 378645163 },
+    { disease: "Colorectal Cancer", total: 338459129, mechanistic: 144499627, environmental: 23403300, everything_else: 170556202 },
+    { disease: "Lung Cancer", total: 492104755, mechanistic: 229974060, environmental: 48284123, everything_else: 213846572 },
+    // Neurodegenerative
+    { disease: "ALS", total: 233986853, mechanistic: 127552390, environmental: 1783744, everything_else: 104650719 },
+    { disease: "Parkinson's", total: 253022087, mechanistic: 149405342, environmental: 12517305, everything_else: 91099440 },
+    // Metabolic/Reproductive
+    { disease: "Liver Disease", total: 944535968, mechanistic: 621436640, environmental: 21360474, everything_else: 301738854 },
+    { disease: "Contraception", total: 739073969, mechanistic: 237437390, environmental: 36992591, everything_else: 464643988 },
+    // Infectious
+    { disease: "Biodefense", total: 2883699985, mechanistic: 1783932242, environmental: 43886261, everything_else: 1055881482 }
+];
+
+// Environmental subfield data
+const envSubfieldData = {
+    "ALS": { "Microbiome": 669479, "Chemicals": 653107, "Other": 461158 },
+    "Biodefense": { "Other": 15413144, "Radiation": 13634218, "Chemicals": 8180452, "Infection": 6658447 },
+    "Breast Cancer": { "Diet/Obesity": 6677929, "Other": 5278252, "Chemicals": 2497939, "Microbiome": 649383, "Smoking": 143500 },
+    "Colorectal Cancer": { "Diet/Obesity": 8551305, "Other": 6555812, "Microbiome": 6213534, "Chemicals": 1060427, "Infection": 567413, "Radiation": 277842, "Gene-Env": 176967 },
+    "Contraception": { "Chemicals": 13146000, "Other": 10920198, "Diet/Obesity": 4532771, "Microbiome": 3606919, "Alcohol": 3432618, "Infection": 737336, "Smoking": 616749 },
+    "Liver Disease": { "Microbiome": 5683198, "Diet/Obesity": 5635005, "Chemicals": 5608314, "Alcohol": 2755412, "Infection": 838170, "Gene-Env": 655569, "Other": 184806 },
+    "Lung Cancer": { "Smoking": 26992964, "Other": 8767856, "Chemicals": 8606568, "Microbiome": 1692713, "Diet/Obesity": 1691413, "Infection": 532609 },
+    "Parkinson's": { "Chemicals": 6881381, "Other": 2318823, "Microbiome": 2110940, "Smoking": 759984, "Diet/Obesity": 446177 }
+};
+
+// All subfields for environmental
+const envSubfields = ["Chemicals", "Smoking", "Diet/Obesity", "Microbiome", "Radiation", "Infection", "Alcohol", "Gene-Env", "Other"];
+
+// Short display names
+const shortNames = {
+    // Mechanistic
+    "Microbial Pathogenesis": "Infectious",
+    "Tumor Biology": "Tumor",
+    "Immune/Inflammatory": "Immune",
+    "Neurodegeneration": "Neuro",
+    "Metabolic": "Metabolic",
+    "Reproductive/Developmental": "Repro",
+    "Genetics/Genomics": "Genetics",
+    "Biomarkers": "Biomarkers",
+    // Clinical
+    "Training/Infrastructure": "Training",
+    "Clinical Trials/Drug Dev": "Trials",
+    "Screening/Detection": "Screening",
+    "Epidemiology/Population": "Epi",
+    "Behavioral/Lifestyle": "Behavioral",
+    "Health Disparities/Access": "Health Disparity",
+    "Technology/Methods": "Tech",
+    // Environmental
+    "Diet/Obesity": "Diet",
+    "Gene-Env": "Gene-Env",
+    // Shared
+    "Other": "Other"
+};
+
+function getShortName(name) {
+    return shortNames[name] || name;
+}
+
+// Disease names for heatmap (use <br> for two lines)
+const displayDiseaseNames = {
+    "Breast Cancer": "Breast<br>Cancer",
+    "Colorectal Cancer": "Colorectal<br>Cancer",
+    "Lung Cancer": "Lung<br>Cancer",
+    "Liver Disease": "Liver<br>Disease",
+    "Parkinson's": "Parkinson's",
+    "Contraception": "Contraception",
+    "Biodefense": "Biodefense",
+    "ALS": "ALS"
+};
+
+function getShortDisease(name) {
+    return displayDiseaseNames[name] || name;
+}
+
+// Mechanistic subfield data (v4 - with miscategorization fixes)
+const mechSubfieldData = {
+    "ALS": { "Neurodegeneration": 97565019, "Other": 12480061, "Microbial Pathogenesis": 7797882, "Immune/Inflammatory": 5002348, "Genetics/Genomics": 4707080 },
+    "Biodefense": { "Microbial Pathogenesis": 1403417136, "Other": 219538793, "Immune/Inflammatory": 94742041, "Genetics/Genomics": 26644282, "Metabolic": 15888723, "Neurodegeneration": 14986623, "Biomarkers": 4880998, "Tumor Biology": 2759348, "Reproductive/Developmental": 1074298 },
+    "Breast Cancer": { "Tumor Biology": 265733555, "Other": 45974016, "Genetics/Genomics": 14570594, "Immune/Inflammatory": 8601691, "Microbial Pathogenesis": 5298525, "Metabolic": 3445440, "Neurodegeneration": 1398851, "Biomarkers": 1155605 },
+    "Colorectal Cancer": { "Tumor Biology": 101533005, "Other": 14336459, "Microbial Pathogenesis": 9188320, "Genetics/Genomics": 8791479, "Immune/Inflammatory": 7097006, "Metabolic": 1712751, "Reproductive/Developmental": 1314989, "Biomarkers": 525618 },
+    "Contraception": { "Reproductive/Developmental": 83512568, "Other": 80084070, "Genetics/Genomics": 24833685, "Immune/Inflammatory": 14039996, "Metabolic": 13101003, "Neurodegeneration": 12891184, "Microbial Pathogenesis": 7367687, "Tumor Biology": 1607197 },
+    "Liver Disease": { "Other": 202309277, "Microbial Pathogenesis": 114950500, "Tumor Biology": 102934896, "Metabolic": 98882896, "Immune/Inflammatory": 53849502, "Genetics/Genomics": 33037733, "Biomarkers": 6687570, "Neurodegeneration": 6274729, "Reproductive/Developmental": 2509537 },
+    "Lung Cancer": { "Tumor Biology": 165222029, "Other": 32753768, "Immune/Inflammatory": 11566537, "Microbial Pathogenesis": 7722964, "Genetics/Genomics": 6649847, "Metabolic": 3212763, "Biomarkers": 1591407, "Neurodegeneration": 1254745 },
+    "Parkinson's": { "Neurodegeneration": 122608609, "Other": 11561928, "Microbial Pathogenesis": 6909842, "Immune/Inflammatory": 5718134, "Metabolic": 1261659, "Genetics/Genomics": 851355, "Reproductive/Developmental": 493815 }
+};
+
+// All subfields for mechanistic (ordered by total funding)
+const mechSubfields = ["Microbial Pathogenesis", "Tumor Biology", "Immune/Inflammatory", "Neurodegeneration", "Metabolic", "Reproductive/Developmental", "Genetics/Genomics", "Biomarkers", "Other"];
+
+// Clinical & Other subfield data (v4 - expanded patterns)
+const clinicalSubfieldData = {
+    "ALS": { "Training/Infrastructure": 31512045, "Health Disparities/Access": 27558097, "Clinical Trials/Drug Dev": 25670454, "Other": 15672392, "Screening/Detection": 1927038, "Technology/Methods": 1324639, "Epidemiology/Population": 986054 },
+    "Biodefense": { "Training/Infrastructure": 519588834, "Other": 223872472, "Clinical Trials/Drug Dev": 207957776, "Epidemiology/Population": 34583937, "Screening/Detection": 33344214, "Technology/Methods": 26328356, "Behavioral/Lifestyle": 7345683, "Health Disparities/Access": 2860210 },
+    "Breast Cancer": { "Other": 196162172, "Technology/Methods": 37717958, "Training/Infrastructure": 34987574, "Clinical Trials/Drug Dev": 31393055, "Epidemiology/Population": 26825975, "Screening/Detection": 25954533, "Behavioral/Lifestyle": 21619375, "Health Disparities/Access": 3984521 },
+    "Colorectal Cancer": { "Other": 80890500, "Screening/Detection": 22111041, "Clinical Trials/Drug Dev": 21787075, "Training/Infrastructure": 14441305, "Epidemiology/Population": 12154995, "Behavioral/Lifestyle": 9293703, "Technology/Methods": 5957908, "Health Disparities/Access": 3919675 },
+    "Contraception": { "Other": 293295876, "Epidemiology/Population": 37560944, "Technology/Methods": 34510023, "Training/Infrastructure": 33292712, "Clinical Trials/Drug Dev": 29293968, "Behavioral/Lifestyle": 20500460, "Screening/Detection": 10595470, "Health Disparities/Access": 5594535 },
+    "Liver Disease": { "Other": 96212798, "Clinical Trials/Drug Dev": 76648147, "Training/Infrastructure": 47386618, "Technology/Methods": 37716497, "Epidemiology/Population": 28663243, "Screening/Detection": 7031811, "Behavioral/Lifestyle": 5428588, "Health Disparities/Access": 2651152 },
+    "Lung Cancer": { "Other": 84907951, "Clinical Trials/Drug Dev": 33246299, "Screening/Detection": 30086563, "Training/Infrastructure": 17941447, "Behavioral/Lifestyle": 17811266, "Epidemiology/Population": 17577123, "Technology/Methods": 7291315, "Health Disparities/Access": 4984608 },
+    "Parkinson's": { "Other": 35040656, "Technology/Methods": 17110565, "Clinical Trials/Drug Dev": 14981502, "Training/Infrastructure": 10328139, "Behavioral/Lifestyle": 4959551, "Epidemiology/Population": 4386694, "Screening/Detection": 4292333 }
+};
+
+// All subfields for clinical (ordered by total funding)
+const clinicalSubfields = ["Training/Infrastructure", "Clinical Trials/Drug Dev", "Screening/Detection", "Epidemiology/Population", "Behavioral/Lifestyle", "Health Disparities/Access", "Technology/Methods", "Other"];
+
+const colors = {
+    mechanistic: '#1e3a5f',
+    everything_else: '#7f8c9a',
+    environmental: '#e63946'
+};
+
+const width = 1200;
+const height = 520;
+
+let selectedCategory = null;
+let selectedDisease = null;
+
+function formatMoney(amount) {
+    if (amount >= 1e9) return '$' + (amount / 1e9).toFixed(2) + 'B';
+    if (amount >= 1e6) return '$' + (amount / 1e6).toFixed(1) + 'M';
+    if (amount >= 1e3) return '$' + (amount / 1e6).toFixed(2) + 'M';
+    if (amount === 0) return '$0M';
+    return '$' + (amount / 1e6).toFixed(2) + 'M';
+}
+
+function formatMoneyShort(amount) {
+    if (amount >= 1e9) return '$' + (amount / 1e9).toFixed(2) + 'B';
+    if (amount >= 1e8) return '$' + (amount / 1e6).toFixed(0) + 'M';
+    if (amount >= 1e6) return '$' + (amount / 1e6).toFixed(1) + 'M';
+    if (amount >= 1e3) return '$' + (amount / 1e6).toFixed(2) + 'M';
+    if (amount === 0) return '—';
+    return '$' + (amount / 1e6).toFixed(2) + 'M';
+}
+
+// Build Sankey
+function buildSankeyData() {
+    const nodes = [];
+    const links = [];
+    const nodeMap = {};
+
+    categoryData.forEach((d, i) => {
+        nodeMap[d.disease] = nodes.length;
+        nodes.push({ name: d.disease, category: 'disease', total: d.total });
+    });
+
+    const categories = [
+        { name: 'Biological Mechanisms', key: 'mechanistic', category: 'mechanistic' },
+        { name: 'Clinical & Other', key: 'everything_else', category: 'everything_else' },
+        { name: 'Environmental Factors', key: 'environmental', category: 'environmental' }
+    ];
+
+    categories.forEach(cat => {
+        nodeMap[cat.name] = nodes.length;
+        nodes.push({ name: cat.name, category: cat.category, clickable: true });
+    });
+
+    categoryData.forEach(d => {
+        categories.forEach(cat => {
+            const value = d[cat.key];
+            if (value > 0) {
+                links.push({
+                    source: nodeMap[d.disease],
+                    target: nodeMap[cat.name],
+                    value: value,
+                    category: cat.category
+                });
+            }
+        });
+    });
+
+    return { nodes, links };
+}
+
+const tooltip = d3.select('.tooltip');
+
+function drawSankey() {
+    const container = d3.select('#sankey-chart');
+    container.html('');
+
+    const svg = container.append('svg').attr('width', width).attr('height', height);
+    const data = buildSankeyData();
+
+    const sankey = d3.sankey()
+        .nodeWidth(22)
+        .nodePadding(14)
+        .extent([[120, 25], [width - 220, height - 25]])
+        .nodeSort(null);
+
+    const { nodes, links } = sankey({
+        nodes: data.nodes.map(d => Object.assign({}, d)),
+        links: data.links.map(d => Object.assign({}, d))
+    });
+
+    // Draw links
+    const linkGroup = svg.append('g').selectAll('path').data(links).join('path')
+        .attr('class', d => `link ${d.category}`)
+        .attr('d', d3.sankeyLinkHorizontal())
+        .attr('stroke-width', d => Math.max(1, d.width))
+        .attr('stroke', d => colors[d.category])
+        .style('stroke-opacity', d => {
+            if (selectedDisease) {
+                return d.source.name === selectedDisease ? 0.9 : 0.05;
+            }
+            if (selectedCategory) {
+                return d.category === selectedCategory ? 0.8 : 0.08;
+            }
+            return 0.35;
+        })
+        .style('filter', d => {
+            if (selectedDisease && d.source.name === selectedDisease) {
+                return 'drop-shadow(2px 2px 4px rgba(0,0,0,0.4))';
+            }
+            return 'none';
+        })
+        .on('mouseover', function(event, d) {
+            tooltip.style('display', 'block')
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 10) + 'px')
+                .html(`<strong>${d.source.name} → ${d.target.name}</strong><br>${formatMoney(d.value)}`);
+        })
+        .on('mouseout', () => tooltip.style('display', 'none'));
+
+    // Add amount labels on links when disease is selected
+    if (selectedDisease) {
+        const diseaseLinks = links.filter(l => l.source.name === selectedDisease);
+        svg.append('g').selectAll('text').data(diseaseLinks).join('text')
+            .attr('x', d => (d.source.x1 + d.target.x0) / 2)
+            .attr('y', d => (d.y0 + d.y1) / 2)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '12px')
+            .attr('font-weight', '600')
+            .attr('fill', d => colors[d.category])
+            .attr('stroke', 'white')
+            .attr('stroke-width', 3)
+            .attr('paint-order', 'stroke')
+            .text(d => formatMoney(d.value));
+    }
+
+    // Draw nodes
+    const node = svg.append('g').selectAll('g').data(nodes).join('g')
+        .attr('class', d => {
+            let classes = 'node';
+            if (d.clickable || d.category === 'disease') classes += ' clickable';
+            if (selectedCategory === d.category) classes += ' selected';
+            if (selectedDisease === d.name) classes += ' selected';
+            return classes;
+        });
+
+    node.append('rect')
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('height', d => Math.max(1, d.y1 - d.y0))
+        .attr('width', d => d.x1 - d.x0)
+        .attr('fill', d => {
+            if (d.category === 'disease') return '#555';
+            return colors[d.category];
+        })
+        .attr('rx', 3)
+        .attr('ry', 3)
+        .on('click', function(event, d) {
+            if (d.clickable) {
+                // Category node clicked (right side)
+                selectedCategory = d.category;
+                selectedDisease = null;
+                drawSankey();
+                showHeatmap(d.category, d.name);
+            } else if (d.category === 'disease') {
+                // Disease node clicked (left side)
+                if (selectedDisease === d.name) {
+                    selectedDisease = null; // Toggle off
+                    document.getElementById('heatmap-section').classList.remove('visible');
+                } else {
+                    selectedDisease = d.name;
+                    showDiseaseHeatmap(d.name);
+                }
+                selectedCategory = null;
+                drawSankey();
+            }
+        })
+        .on('mouseover', function(event, d) {
+            d3.select(this).style('cursor', 'pointer');
+            if (d.category === 'disease') {
+                const diseaseLinks = links.filter(l => l.source.name === d.name);
+                const total = diseaseLinks.reduce((s, l) => s + l.value, 0);
+                tooltip.style('display', 'block')
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px')
+                    .html(`<strong>${d.name}</strong><br>Total: ${formatMoney(total)}<br><em>Click to highlight</em>`);
+            } else if (d.category !== 'disease') {
+                const total = links.filter(l => l.target.index === d.index).reduce((s, l) => s + l.value, 0);
+                const grandTotal = categoryData.reduce((s, c) => s + c.total, 0);
+                tooltip.style('display', 'block')
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px')
+                    .html(`<strong>${d.name}</strong><br>${formatMoney(total)} (${(100 * total / grandTotal).toFixed(1)}% of total)<br><em>Click to see breakdown</em>`);
+            }
+        })
+        .on('mouseout', () => tooltip.style('display', 'none'));
+
+    // Node labels
+    node.append('text')
+        .attr('x', d => d.x0 < width / 2 ? d.x0 - 8 : d.x1 + 8)
+        .attr('y', d => (d.y1 + d.y0) / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', d => d.x0 < width / 2 ? 'end' : 'start')
+        .text(d => d.name)
+        .attr('fill', d => {
+            if (selectedCategory === d.category) return colors[d.category];
+            return '#333';
+        })
+        .attr('font-weight', d => selectedCategory === d.category ? '700' : '500');
+
+    // Amount labels for right nodes
+    node.filter(d => d.clickable)
+        .append('text')
+        .attr('x', d => d.x1 + 8)
+        .attr('y', d => (d.y1 + d.y0) / 2 + 16)
+        .attr('text-anchor', 'start')
+        .text(d => {
+            const total = links.filter(l => l.target.index === d.index).reduce((s, l) => s + l.value, 0);
+            return formatMoney(total);
+        })
+        .attr('fill', '#666')
+        .attr('font-size', '11px');
+
+    // Column headers
+    svg.append('text')
+        .attr('x', 115)
+        .attr('y', 15)
+        .attr('text-anchor', 'end')
+        .attr('font-size', '13px')
+        .attr('font-weight', '600')
+        .attr('fill', '#555')
+        .text('Condition');
+
+    svg.append('text')
+        .attr('x', width - 215)
+        .attr('y', 15)
+        .attr('text-anchor', 'start')
+        .attr('font-size', '13px')
+        .attr('font-weight', '600')
+        .attr('fill', '#555')
+        .text('Categories');
+}
+
+// highlightLinks is now handled inline via stroke-opacity in drawSankey
+
+function showDiseaseHeatmap(diseaseName) {
+    const section = document.getElementById('heatmap-section');
+    section.classList.add('visible');
+
+    const titleEl = document.getElementById('heatmap-title');
+    const totalEl = document.getElementById('heatmap-total');
+    const subtitleEl = document.getElementById('heatmap-subtitle');
+    const tableEl = document.getElementById('heatmap-table');
+    const insightEl = document.getElementById('insight-callout');
+    const legendGradient = document.getElementById('legend-gradient');
+
+    // Get disease data
+    const diseaseInfo = categoryData.find(d => d.disease === diseaseName);
+    const total = diseaseInfo ? diseaseInfo.total : 0;
+
+    titleEl.textContent = `${diseaseName} - All Categories`;
+    totalEl.textContent = formatMoney(total);
+    totalEl.className = 'heatmap-total';
+    totalEl.style.color = '#333';
+    subtitleEl.textContent = 'Funding breakdown across all research categories';
+
+    // All data uses the same keys as categoryData
+    const dataKey = diseaseName;
+
+    // Get subfield data for this disease
+    const envData = envSubfieldData[dataKey] || {};
+    const mechData = mechSubfieldData[dataKey] || {};
+    const clinData = clinicalSubfieldData[dataKey] || {};
+
+    // Calculate totals for each category
+    const envTotal = Object.values(envData).reduce((a, b) => a + b, 0);
+    const mechTotal = Object.values(mechData).reduce((a, b) => a + b, 0);
+    const clinTotal = Object.values(clinData).reduce((a, b) => a + b, 0);
+
+    // Find max values for color scaling
+    const envMax = Math.max(...Object.values(envData), 1);
+    const mechMax = Math.max(...Object.values(mechData), 1);
+    const clinMax = Math.max(...Object.values(clinData), 1);
+
+    // Color functions
+    function envColor(val) {
+        if (val === 0) return '#f8f8f8';
+        const t = Math.min(val / envMax, 1);
+        return d3.interpolateRgb('#fce4e4', '#e63946')(t);
+    }
+    function mechColor(val) {
+        if (val === 0) return '#f8f8f8';
+        const t = Math.min(val / mechMax, 1);
+        return d3.interpolateRgb('#e8eef4', '#1e3a5f')(t);
+    }
+    function clinColor(val) {
+        if (val === 0) return '#f8f8f8';
+        const t = Math.min(val / clinMax, 1);
+        return d3.interpolateRgb('#f0f0f0', '#4a5568')(t);
+    }
+
+    // Build three-column heatmap grid
+    let html = `<thead><tr>
+        <th style="background:#fce4e4; color:#e63946;">Environmental<br><span style="font-weight:normal;font-size:0.75rem;">${formatMoney(envTotal)}</span></th>
+        <th style="background:#e8eef4; color:#1e3a5f;">Biological<br><span style="font-weight:normal;font-size:0.75rem;">${formatMoney(mechTotal)}</span></th>
+        <th style="background:#f0f0f0; color:#4a5568;">Clinical<br><span style="font-weight:normal;font-size:0.75rem;">${formatMoney(clinTotal)}</span></th>
+    </tr></thead><tbody>`;
+
+    // Get sorted subfields for each category
+    const envSorted = Object.entries(envData).filter(([,v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const mechSorted = Object.entries(mechData).filter(([,v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const clinSorted = Object.entries(clinData).filter(([,v]) => v > 0).sort((a, b) => b[1] - a[1]);
+
+    // Maximum rows needed
+    const maxRows = Math.max(envSorted.length, mechSorted.length, clinSorted.length, 1);
+
+    for (let i = 0; i < maxRows; i++) {
+        html += '<tr>';
+
+        // Environmental cell
+        if (i < envSorted.length) {
+            const [sf, val] = envSorted[i];
+            const pct = (100 * val / envTotal).toFixed(0);
+            const bg = envColor(val);
+            const textColor = val > envMax * 0.5 ? 'white' : '#333';
+            html += `<td><div class="heatmap-cell" style="background:${bg}; color:${textColor};">
+                <span class="amount">${formatMoneyShort(val)}</span>
+                <span class="pct">${getShortName(sf)} (${pct}%)</span>
+            </div></td>`;
+        } else {
+            html += '<td></td>';
+        }
+
+        // Mechanistic cell
+        if (i < mechSorted.length) {
+            const [sf, val] = mechSorted[i];
+            const pct = (100 * val / mechTotal).toFixed(0);
+            const bg = mechColor(val);
+            const textColor = val > mechMax * 0.4 ? 'white' : '#333';
+            html += `<td><div class="heatmap-cell" style="background:${bg}; color:${textColor};">
+                <span class="amount">${formatMoneyShort(val)}</span>
+                <span class="pct">${getShortName(sf)} (${pct}%)</span>
+            </div></td>`;
+        } else {
+            html += '<td></td>';
+        }
+
+        // Clinical cell
+        if (i < clinSorted.length) {
+            const [sf, val] = clinSorted[i];
+            const pct = (100 * val / clinTotal).toFixed(0);
+            const bg = clinColor(val);
+            const textColor = val > clinMax * 0.5 ? 'white' : '#333';
+            html += `<td><div class="heatmap-cell" style="background:${bg}; color:${textColor};">
+                <span class="amount">${formatMoneyShort(val)}</span>
+                <span class="pct">${getShortName(sf)} (${pct}%)</span>
+            </div></td>`;
+        } else {
+            html += '<td></td>';
+        }
+
+        html += '</tr>';
+    }
+
+    html += '</tbody>';
+    tableEl.innerHTML = html;
+
+    // Legend
+    legendGradient.style.background = 'linear-gradient(to right, #fce4e4, #e63946 33%, #e8eef4 33%, #1e3a5f 66%, #f0f0f0 66%, #4a5568)';
+    document.getElementById('legend-max').textContent = '';
+
+    // Insight
+    const envPct = (100 * envTotal / total).toFixed(1);
+    const mechPct = (100 * mechTotal / total).toFixed(1);
+    const clinPct = (100 * clinTotal / total).toFixed(1);
+
+    insightEl.innerHTML = `
+        <h3>${diseaseName} Funding Distribution</h3>
+        <p>Of <strong>${formatMoney(total)}</strong> total:
+            <span style="color:#e63946;font-weight:600;">Environmental ${envPct}%</span> |
+            <span style="color:#1e3a5f;font-weight:600;">Biological ${mechPct}%</span> |
+            <span style="color:#4a5568;font-weight:600;">Clinical ${clinPct}%</span>
+        </p>
+    `;
+}
+
+function showHeatmap(category, categoryName) {
+    const section = document.getElementById('heatmap-section');
+    section.classList.add('visible');
+
+    const titleEl = document.getElementById('heatmap-title');
+    const totalEl = document.getElementById('heatmap-total');
+    const subtitleEl = document.getElementById('heatmap-subtitle');
+    const tableEl = document.getElementById('heatmap-table');
+    const insightEl = document.getElementById('insight-callout');
+    const legendGradient = document.getElementById('legend-gradient');
+
+    // Set colors based on category
+    totalEl.className = 'heatmap-total ' + category.replace('_', '-');
+
+    if (category === 'environmental') {
+        renderEnvironmentalHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient);
+    } else if (category === 'mechanistic') {
+        renderMechanisticHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient);
+    } else {
+        renderEverythingElseHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient);
+    }
+}
+
+function renderEnvironmentalHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient) {
+    const total = categoryData.reduce((s, d) => s + d.environmental, 0);
+
+    titleEl.textContent = 'Environmental Factors Breakdown';
+    totalEl.textContent = formatMoney(total);
+    subtitleEl.textContent = 'Dollar amounts by disease area and exposure type. Percentages show share of each row total.';
+
+    // Find max value for color scale
+    let maxVal = 0;
+    Object.values(envSubfieldData).forEach(disease => {
+        Object.values(disease).forEach(val => {
+            if (val > maxVal) maxVal = val;
+        });
+    });
+
+    // Color scale - white to red
+    const colorScale = d3.scaleSequential()
+        .domain([0, maxVal])
+        .interpolator(d3.interpolateRgb('#f5f5f5', '#e63946'));
+
+    legendGradient.style.background = 'linear-gradient(to right, #f5f5f5, #e63946)';
+    document.getElementById('legend-max').textContent = 'Max';
+
+    // Calculate column totals
+    const colTotals = {};
+    envSubfields.forEach(sf => colTotals[sf] = 0);
+    Object.values(envSubfieldData).forEach(disease => {
+        Object.entries(disease).forEach(([sf, val]) => {
+            colTotals[sf] = (colTotals[sf] || 0) + val;
+        });
+    });
+
+    // Build table
+    let html = '<thead><tr><th>Condition</th>';
+    envSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<th class="col-header">${getShortName(sf)}</th>`;
+        }
+    });
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    categoryData.forEach(d => {
+        const diseaseData = envSubfieldData[d.disease] || {};
+        const rowTotal = d.environmental;
+
+        html += `<tr><td>${getShortDisease(d.disease)}</td>`;
+        envSubfields.forEach(sf => {
+            const colTotal = colTotals[sf] || 0;
+            if (colTotal > 0) {
+                const val = diseaseData[sf] || 0;
+                const pct = rowTotal > 0 ? (100 * val / rowTotal).toFixed(1) : 0;
+                const bgColor = val > 0 ? colorScale(val) : '#f8f8f8';
+                const textColor = val > maxVal * 0.5 ? 'white' : '#333';
+
+                html += `<td>
+                    <div class="heatmap-cell ${val === 0 ? 'zero' : ''}" style="background: ${bgColor}; color: ${textColor};">
+                        <span class="amount">${formatMoneyShort(val)}</span>
+                        ${val > 0 ? `<span class="pct">(${pct}%)</span>` : ''}
+                    </div>
+                </td>`;
+            }
+        });
+        html += `<td class="row-total">${formatMoneyShort(rowTotal)}</td></tr>`;
+    });
+
+    // Footer with column totals
+    html += '</tbody><tfoot><tr><td><strong>Column Total</strong></td>';
+    envSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<td><strong>${formatMoneyShort(colTotal)}</strong></td>`;
+        }
+    });
+    html += `<td><strong>${formatMoney(total)}</strong></td></tr></tfoot>`;
+
+    tableEl.innerHTML = html;
+
+    // Insight
+    const chemicalsTotal = colTotals['Chemicals'] || 0;
+    const smokingTotal = colTotals['Smoking'] || 0;
+    const grandTotal = categoryData.reduce((s, d) => s + d.total, 0);
+
+    insightEl.innerHTML = `
+        <h3>The Funding Gap</h3>
+        <p>Of <strong>${formatMoney(grandTotal)}</strong> in total NIH funding across these disease areas:</p>
+        <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li><span class="highlight">Chemicals/Pollutants</span> receive just <strong>${formatMoney(chemicalsTotal)}</strong> — that's <strong>${(100 * chemicalsTotal / grandTotal).toFixed(2)}%</strong> of total funding</li>
+            <li><span class="highlight">Smoking research</span> receives <strong>${formatMoney(smokingTotal)}</strong> — mostly concentrated in Lung Cancer</li>
+            <li>The entire <span class="highlight">Environmental Factors</span> category receives only <strong>${(100 * total / grandTotal).toFixed(1)}%</strong> of funding</li>
+        </ul>
+    `;
+}
+
+function renderMechanisticHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient) {
+    // Calculate total from actual subfield data
+    let total = 0;
+    Object.values(mechSubfieldData).forEach(disease => {
+        Object.values(disease).forEach(val => { total += val; });
+    });
+    const grandTotal = categoryData.reduce((s, d) => s + d.total, 0);
+    const envTotal = categoryData.reduce((s, d) => s + d.environmental, 0);
+
+    titleEl.textContent = 'Biological Mechanisms Breakdown';
+    totalEl.textContent = formatMoney(total);
+    subtitleEl.textContent = 'Dollar amounts by disease area and research focus. Percentages show share of each disease area total.';
+
+    // Two-stage color scale: white -> navy at $100M -> black for >$100M
+    const colorMid = 100e6; // $100M
+    const colorMax = 1300e6; // ~max value for extended range
+
+    // Custom color scale with better differentiation
+    function getColor(val) {
+        if (val === 0) return '#f8f8f8';
+        if (val <= colorMid) {
+            // White to navy for 0-$100M
+            const t = val / colorMid;
+            return d3.interpolateRgb('#f5f5f5', '#1e3a5f')(t);
+        } else {
+            // Navy to near-black for >$100M
+            const t = Math.min((val - colorMid) / (colorMax - colorMid), 1);
+            return d3.interpolateRgb('#1e3a5f', '#0a0a12')(t);
+        }
+    }
+
+    legendGradient.style.background = 'linear-gradient(to right, #f5f5f5, #1e3a5f 50%, #0a0a12)';
+    document.getElementById('legend-max').textContent = '>$100M';
+
+    // Calculate column totals
+    const colTotals = {};
+    mechSubfields.forEach(sf => colTotals[sf] = 0);
+    Object.values(mechSubfieldData).forEach(disease => {
+        Object.entries(disease).forEach(([sf, val]) => {
+            colTotals[sf] = (colTotals[sf] || 0) + val;
+        });
+    });
+
+    // Build table
+    let html = '<thead><tr><th>Condition</th>';
+    mechSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<th class="col-header">${getShortName(sf)}</th>`;
+        }
+    });
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    // Map disease names to match mechSubfieldData keys
+    const diseaseNameMap = {
+        "ALS": "ALS",
+        "Biodefense": "Biodefense",
+        "Breast Cancer": "Breast Cancer",
+        "Colorectal Cancer": "Colorectal Cancer",
+        "Contraception": "Contraception",
+        "Liver Disease": "Liver Disease",
+        "Lung Cancer": "Lung Cancer",
+        "Parkinson's": "Parkinson's"
+    };
+
+    categoryData.forEach(d => {
+        const diseaseKey = diseaseNameMap[d.disease] || d.disease;
+        const diseaseData = mechSubfieldData[diseaseKey] || {};
+        const rowTotal = Object.values(diseaseData).reduce((a, b) => a + b, 0);
+
+        html += `<tr><td>${getShortDisease(d.disease)}</td>`;
+        mechSubfields.forEach(sf => {
+            const colTotal = colTotals[sf] || 0;
+            if (colTotal > 0) {
+                const val = diseaseData[sf] || 0;
+                const pct = rowTotal > 0 ? (100 * val / rowTotal).toFixed(1) : 0;
+                const bgColor = getColor(val);
+                const textColor = val > colorMid * 0.4 ? 'white' : '#333';
+
+                html += `<td>
+                    <div class="heatmap-cell ${val === 0 ? 'zero' : ''}" style="background: ${bgColor}; color: ${textColor};">
+                        <span class="amount">${formatMoneyShort(val)}</span>
+                        ${val > 0 ? `<span class="pct">(${pct}%)</span>` : ''}
+                    </div>
+                </td>`;
+            }
+        });
+        html += `<td class="row-total">${formatMoneyShort(rowTotal)}</td></tr>`;
+    });
+
+    // Footer with column totals
+    html += '</tbody><tfoot><tr><td><strong>Column Total</strong></td>';
+    mechSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<td><strong>${formatMoneyShort(colTotal)}</strong></td>`;
+        }
+    });
+    html += `<td><strong>${formatMoney(total)}</strong></td></tr></tfoot>`;
+
+    tableEl.innerHTML = html;
+
+    // Insight
+    const tumorTotal = colTotals['Tumor Biology'] || 0;
+    const microbialTotal = colTotals['Microbial Pathogenesis'] || 0;
+
+    insightEl.innerHTML = `
+        <h3>Biological Mechanisms Research Dominates</h3>
+        <p><strong>${formatMoney(total)}</strong> (${(100 * total / grandTotal).toFixed(1)}% of total funding) goes to studying biological mechanisms.</p>
+        <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li><strong>Microbial Pathogenesis</strong> alone receives <strong>${formatMoney(microbialTotal)}</strong> — ${(microbialTotal / envTotal).toFixed(0)}x more than ALL environmental research</li>
+            <li><strong>Tumor Biology</strong> receives <strong>${formatMoney(tumorTotal)}</strong> — ${(tumorTotal / envTotal).toFixed(0)}x more than environmental research</li>
+            <li>Even <strong>Biomarkers</strong> — the smallest biological subcategory at ${formatMoney(colTotals['Biomarkers'] || 0)} — shows how fragmented environmental research is by comparison</li>
+        </ul>
+    `;
+}
+
+function renderEverythingElseHeatmap(titleEl, totalEl, subtitleEl, tableEl, insightEl, legendGradient) {
+    // Calculate total from actual subfield data
+    let total = 0;
+    Object.values(clinicalSubfieldData).forEach(disease => {
+        Object.values(disease).forEach(val => { total += val; });
+    });
+    const grandTotal = categoryData.reduce((s, d) => s + d.total, 0);
+    const envTotal = categoryData.reduce((s, d) => s + d.environmental, 0);
+
+    titleEl.textContent = 'Clinical & Other Breakdown';
+    totalEl.textContent = formatMoney(total);
+    subtitleEl.textContent = 'Dollar amounts by disease area and research type. Percentages show share of each disease area total.';
+
+    // Two-stage color scale like mechanistic
+    const colorMid = 50e6; // $50M
+    const colorMax = 350e6;
+
+    function getColor(val) {
+        if (val === 0) return '#f8f8f8';
+        if (val <= colorMid) {
+            const t = val / colorMid;
+            return d3.interpolateRgb('#f5f5f5', '#7f8c9a')(t);
+        } else {
+            const t = Math.min((val - colorMid) / (colorMax - colorMid), 1);
+            return d3.interpolateRgb('#7f8c9a', '#2d3436')(t);
+        }
+    }
+
+    legendGradient.style.background = 'linear-gradient(to right, #f5f5f5, #7f8c9a 50%, #2d3436)';
+    document.getElementById('legend-max').textContent = '>$50M';
+
+    // Calculate column totals
+    const colTotals = {};
+    clinicalSubfields.forEach(sf => colTotals[sf] = 0);
+    Object.values(clinicalSubfieldData).forEach(disease => {
+        Object.entries(disease).forEach(([sf, val]) => {
+            colTotals[sf] = (colTotals[sf] || 0) + val;
+        });
+    });
+
+    // Build table
+    let html = '<thead><tr><th>Condition</th>';
+    clinicalSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<th class="col-header">${getShortName(sf)}</th>`;
+        }
+    });
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    const diseaseNameMap = {
+        "ALS": "ALS", "Biodefense": "Biodefense", "Breast Cancer": "Breast Cancer",
+        "Colorectal Cancer": "Colorectal Cancer", "Contraception": "Contraception",
+        "Liver Disease": "Liver Disease", "Lung Cancer": "Lung Cancer", "Parkinson's": "Parkinson's"
+    };
+
+    categoryData.forEach(d => {
+        const diseaseKey = diseaseNameMap[d.disease] || d.disease;
+        const diseaseData = clinicalSubfieldData[diseaseKey] || {};
+        const rowTotal = Object.values(diseaseData).reduce((a, b) => a + b, 0);
+
+        html += `<tr><td>${getShortDisease(d.disease)}</td>`;
+        clinicalSubfields.forEach(sf => {
+            const colTotal = colTotals[sf] || 0;
+            if (colTotal > 0) {
+                const val = diseaseData[sf] || 0;
+                const pct = rowTotal > 0 ? (100 * val / rowTotal).toFixed(1) : 0;
+                const bgColor = getColor(val);
+                const textColor = val > colorMid * 0.5 ? 'white' : '#333';
+
+                html += `<td>
+                    <div class="heatmap-cell ${val === 0 ? 'zero' : ''}" style="background: ${bgColor}; color: ${textColor};">
+                        <span class="amount">${formatMoneyShort(val)}</span>
+                        ${val > 0 ? `<span class="pct">(${pct}%)</span>` : ''}
+                    </div>
+                </td>`;
+            }
+        });
+        html += `<td class="row-total">${formatMoneyShort(rowTotal)}</td></tr>`;
+    });
+
+    // Footer
+    html += '</tbody><tfoot><tr><td><strong>Column Total</strong></td>';
+    clinicalSubfields.forEach(sf => {
+        const colTotal = colTotals[sf] || 0;
+        if (colTotal > 0) {
+            html += `<td><strong>${formatMoneyShort(colTotal)}</strong></td>`;
+        }
+    });
+    html += `<td><strong>${formatMoney(total)}</strong></td></tr></tfoot>`;
+
+    tableEl.innerHTML = html;
+
+    // Insight
+    const infraTotal = colTotals['Training/Infrastructure'] || 0;
+    const trialsTotal = colTotals['Clinical Trials/Drug Dev'] || 0;
+
+    const otherTotal = colTotals['Other'] || 0;
+    const otherPct = (100 * otherTotal / total).toFixed(0);
+
+    insightEl.innerHTML = `
+        <h3>Clinical & Other Research</h3>
+        <p><strong>${formatMoney(total)}</strong> (${(100 * total / grandTotal).toFixed(1)}% of total funding) supports clinical research, training, and infrastructure.</p>
+        <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li><strong>Training/Infrastructure</strong> receives ${formatMoney(infraTotal)} — ${(infraTotal / envTotal).toFixed(0)}x more than ALL environmental research</li>
+            <li><strong>Clinical Trials</strong> receives ${formatMoney(trialsTotal)} — more than environmental research (${formatMoney(envTotal)})</li>
+            <li><strong>"Other"</strong> (${otherPct}%) reflects heterogeneous research with generic titles (e.g., "Project 1", "Research Program")</li>
+        </ul>
+    `;
+}
+
+// Initialize
+drawSankey();
+
+// Auto-click Environmental to show the main insight
+setTimeout(() => {
+    selectedCategory = 'environmental';
+    drawSankey();
+    showHeatmap('environmental', 'Environmental Factors');
+}, 500);
+</script>
+</body>
+</html>

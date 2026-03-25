@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIH Research Funding by Disease Area</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-primary: #0D3B3C;
+            --color-secondary: #46B3A9;
+            --color-background: #F9F8F3;
+            --color-text: #2E2E2E;
+            --color-text-light: #5A5A5A;
+            --color-border: #D8D7CF;
+            --font-serif: 'Spectral', Georgia, serif;
+            --font-sans: 'Source Sans Pro', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-serif);
+            background: var(--color-background);
+            color: var(--color-primary);
+            padding: 2rem;
+        }
+
+        .widget-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--color-background);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .widget-title {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .widget-subtitle {
+            text-align: center;
+            font-size: 1rem;
+            color: var(--color-text-light);
+            font-style: italic;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            position: relative;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .bar-label {
+            width: 280px;
+            flex-shrink: 0;
+            text-align: right;
+            padding-right: 1rem;
+            font-size: 0.9rem;
+            color: var(--color-primary);
+            font-family: var(--font-sans);
+            cursor: help;
+        }
+
+        .bar-wrapper {
+            flex: 1;
+            position: relative;
+            height: 28px;
+        }
+
+        .bar {
+            height: 100%;
+            background: var(--color-secondary);
+            border-radius: 0 4px 4px 0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .bar:hover {
+            background: #3A9A91;
+            transform: scaleY(1.1);
+        }
+
+        .bar-value {
+            position: absolute;
+            right: -70px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            color: var(--color-text-light);
+            font-family: var(--font-sans);
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .bar-row:hover .bar-value {
+            opacity: 1;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: absolute;
+            background: var(--color-primary);
+            color: #fff;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            max-width: 350px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 8px solid transparent;
+            border-right-color: var(--color-primary);
+        }
+
+        .bar-row:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .tooltip-title {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--color-secondary);
+        }
+
+        .x-axis {
+            display: flex;
+            justify-content: space-between;
+            margin-left: 280px;
+            margin-top: 1rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .x-axis span {
+            font-size: 0.8rem;
+            color: var(--color-text-light);
+            font-family: var(--font-sans);
+        }
+
+        .x-axis-label {
+            text-align: center;
+            margin-left: 280px;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--color-primary);
+            font-family: var(--font-sans);
+            font-weight: 600;
+        }
+
+        .data-source {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: var(--color-text-light);
+            font-style: italic;
+            line-height: 1.6;
+        }
+
+        .data-source a {
+            color: var(--color-secondary);
+            text-decoration: none;
+        }
+
+        .data-source a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <h2 class="widget-title">NIH Research Funding by Disease Area</h2>
+        <p class="widget-subtitle">2024 Fiscal Year Appropriations</p>
+
+        <div class="chart-container" id="chart"></div>
+
+        <div class="x-axis">
+            <span>$0</span>
+            <span>$5B</span>
+            <span>$10B</span>
+            <span>$15B</span>
+            <span>$20B</span>
+        </div>
+        <p class="x-axis-label">Funding (Millions USD)</p>
+
+        <p class="data-source">
+            Data source: <a href="https://reporter.nih.gov/funding/categorical-spending" target="_blank" rel="noopener">NIH RePORTER Categorical Spending</a><br>
+            Definitions: <a href="https://grants.nih.gov/funding/explore-data-on-funded-projects/rcdc-categories-at-a-glance" target="_blank" rel="noopener">RCDC Categories At a Glance</a><br>
+            <em>Note: Categories are not mutually exclusive; projects may be counted in multiple areas.</em>
+        </p>
+    </div>
+
+    <script>
+        const data = [
+            {
+                name: "Clinical Research",
+                value: 18606,
+                definition: "Research involving direct interaction with human participants or human-derived materials (e.g., tissue specimens, blood samples, cognitive assessments). Examples: patient-oriented studies, epidemiological surveys, outcomes research. Includes Clinical Trials and Health Services as subcategories."
+            },
+            {
+                name: "Genetics",
+                value: 11667,
+                definition: "Research on gene structure, function, regulation, and heredity. Examples: CRISPR gene editing, gene therapy development, studies of inherited disorders, pharmacogenomics. Includes Gene Therapy, Genetic Testing, and Human Genome as subcategories."
+            },
+            {
+                name: "Prevention",
+                value: 11535,
+                definition: "Research aimed at stopping disease before it starts: identifying risk/protective factors, screening, developing health-promoting interventions, evaluating public health policies. Examples: vaccine development, smoking cessation, obesity prevention. Includes Substance Misuse Prevention, Suicide Prevention, and vaccine subcategories (HPV, Malaria, TB)."
+            },
+            {
+                name: "Brain Disorders",
+                value: 8927,
+                definition: "Research on diseases affecting the brain: mental illness, substance use, sensory/communication disorders, neurological conditions. Includes ALS, Parkinson's, Huntington's, depression, schizophrenia, ADHD, epilepsy, TBI, stroke, and autism. Overlaps with Neurodegenerative and Rare Diseases for conditions like ALS and Huntington's."
+            },
+            {
+                name: "Biotechnology",
+                value: 8783,
+                definition: "Development of new biological technologies and innovative applications of existing ones. Examples: novel drug delivery systems, diagnostic biosensors, CRISPR tools, organoid development, sequencing technologies. Includes Gene Therapy as a subcategory."
+            },
+            {
+                name: "Behavioral and Social Science",
+                value: 8589,
+                definition: "Research on how behavior and social context affect health. Behavioral: observable actions, attitudes, motivations, cognitions, emotions. Social: family dynamics, community factors, workplace health, health disparities, policy environments. Examples: health behavior interventions, social determinants of health studies."
+            },
+            {
+                name: "Cancer",
+                value: 8050,
+                definition: "All research on cancer causes, diagnosis, prevention, and treatment. Includes 17+ specific cancer types (breast, lung, colorectal, pancreatic, etc.), Cancer Genomics, Pediatric Cancer, and Radiation Oncology. All NCI-funded research is included."
+            },
+            {
+                name: "Infectious Diseases",
+                value: 7981,
+                definition: "Research on diseases caused by bacteria, viruses, fungi, and parasites. Includes Antimicrobial Resistance, Emerging Infectious Diseases, Hepatitis B/C, TB, Sepsis, STIs, and Vector-Borne Diseases as subcategories."
+            },
+            {
+                name: "Bioengineering",
+                value: 6866,
+                definition: "Applying engineering, physics, chemistry, and math to biological/medical problems. Examples: medical device development, prosthetics, imaging technologies, computational modeling, tissue engineering. Includes Assistive Technology and Nanotechnology as subcategories."
+            },
+            {
+                name: "Rare Diseases",
+                value: 6830,
+                definition: "Research on ~7,000 conditions affecting <200,000 people each in the U.S. Includes ALS, Huntington's, cystic fibrosis, sickle cell, muscular dystrophy, and rare cancers. Overlaps with Brain Disorders and Neurodegenerative for neurological rare diseases."
+            },
+            {
+                name: "Aging",
+                value: 6497,
+                definition: "Research on biological, behavioral, and social aspects of aging. Includes Alzheimer's Disease, Menopause, and Sarcopenia as subcategories. Overlaps with Neurodegenerative for Alzheimer's research. All NIA-funded research is included."
+            },
+            {
+                name: "Neurodegenerative Diseases",
+                value: 5113,
+                definition: "Research on progressive nervous system deterioration. Includes Alzheimer's, Parkinson's, ALS, Huntington's, frontotemporal dementia, multiple sclerosis, Lewy body dementia, and prion diseases. Overlaps with Brain Disorders, Aging, and Rare Diseases."
+            },
+            {
+                name: "AI, Machine Learning, Data Science",
+                value: 4524,
+                definition: "Development and application of AI/ML to biomedical research, plus advanced data analytics. Examples: deep learning for medical imaging, NLP for clinical notes, drug discovery algorithms, predictive disease models, large-scale 'omics data analysis."
+            }
+        ];
+
+        const maxValue = Math.max(...data.map(d => d.value));
+        const chartContainer = document.getElementById('chart');
+
+        data.forEach(item => {
+            const barWidth = (item.value / maxValue) * 100;
+
+            const row = document.createElement('div');
+            row.className = 'bar-row';
+
+            row.innerHTML = `
+                <div class="bar-label">${item.name}</div>
+                <div class="bar-wrapper">
+                    <div class="bar" style="width: ${barWidth}%"></div>
+                    <span class="bar-value">$${(item.value / 1000).toFixed(1)}B</span>
+                    <div class="tooltip" style="left: calc(${Math.min(barWidth + 5, 70)}% + 10px);">
+                        <div class="tooltip-title">${item.name}</div>
+                        <div>${item.definition}</div>
+                        <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.8;">FY2024: $${item.value.toLocaleString()}M</div>
+                    </div>
+                </div>
+            `;
+
+            chartContainer.appendChild(row);
+        });
+    </script>
+</body>
+</html>
