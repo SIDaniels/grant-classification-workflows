@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENV Grants: Exposure → Mechanism of Harm</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #fafafa;
+        }
+        h1 { color: #333; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 10px; }
+        .note {
+            color: #856404;
+            font-size: 12px;
+            margin-bottom: 15px;
+            background: #fff3cd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 3px solid #ffc107;
+        }
+        #chart {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .node rect { cursor: pointer; stroke: #fff; stroke-width: 1px; }
+        .node rect:hover { stroke: #333; stroke-width: 2px; }
+        .node text { font-size: 11px; pointer-events: none; font-weight: 500; }
+        .link { fill: none; stroke-opacity: 0.4; }
+        .link:hover { stroke-opacity: 0.7; }
+        .link.faded { stroke-opacity: 0.08; }
+        .link.highlighted { stroke-opacity: 0.8; }
+        .node.faded rect { opacity: 0.3; }
+        .node.faded text { opacity: 0.3; }
+        #info-panel {
+            position: fixed; top: 20px; right: 20px;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.15);
+            max-width: 280px; display: none; z-index: 100;
+        }
+        #info-panel h3 { margin: 0 0 10px 0; color: #333; border-bottom: 2px solid; padding-bottom: 5px; }
+        #info-panel .connections { max-height: 300px; overflow-y: auto; }
+        #info-panel .connection { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+        #info-panel .close-btn { position: absolute; top: 8px; right: 10px; cursor: pointer; color: #999; font-size: 18px; }
+        .legend { display: flex; gap: 30px; margin-bottom: 15px; font-size: 13px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+        .group-label { font-size: 12px; font-weight: 600; }
+        .instructions { text-align: center; color: #666; font-size: 12px; margin-top: 10px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>ENV Grants: Exposure → Mechanism of Harm</h1>
+    <div class="subtitle">8,735 Environmental Health Science grants (FY2022-2025) | 6,281 with exposure-mechanism links</div>
+    <div class="note">Excluded: Psychosocial Stress, Noise, Sleep/Circadian (lifestyle factors without clear molecular mechanisms)</div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background: #2171b5;"></div><span>Chemical Exposures</span></div>
+        <div class="legend-item"><div class="legend-color" style="background: #238b45;"></div><span>Lifestyle/Biological</span></div>
+        <div class="legend-item"><div class="legend-color" style="background: #d94801;"></div><span>Mechanisms of Harm</span></div>
+    </div>
+
+    <div id="chart"></div>
+    <p class="instructions">Click any node to highlight its connections</p>
+
+    <div id="info-panel">
+        <span class="close-btn" onclick="clearHighlight()">&times;</span>
+        <h3 id="panel-title">Node</h3>
+        <div class="connections" id="panel-connections"></div>
+    </div>
+
+<script>
+// Data
+const chemicalExposures = ["Heavy_Metals","Air_Pollution","Radiation","PAHs_Dioxins_PCBs","Pesticides","PFAS","Phthalates_BPA","Solvents","Flame_Retardants"];
+const lifestyleExposures = ["Diet_Nutrition","Tobacco_Smoke","Viral_Infection","Alcohol","Bacterial_Infection","Drugs_Medications","Hypoxia"];
+const mechanismList = ["Signaling_Disruption","Inflammation","Microbiome_Disruption","Receptor_Activation","Immune_Dysfunction","Epigenetic_Changes","Oxidative_Stress","Senescence","Neurodegeneration","Cell_Death","Barrier_Disruption","Endocrine_Disruption","DNA_Damage","Mitochondrial_Dysfunction","Metabolic_Disruption","Protein_Stress"];
+
+const linksData = [
+    ["Diet_Nutrition","Signaling_Disruption",1867],["Bacterial_Infection","Microbiome_Disruption",1349],["Diet_Nutrition","Inflammation",1209],["Diet_Nutrition","Microbiome_Disruption",1197],["Heavy_Metals","Signaling_Disruption",1111],["Bacterial_Infection","Inflammation",887],["Diet_Nutrition","Receptor_Activation",761],["Bacterial_Infection","Signaling_Disruption",759],["Viral_Infection","Inflammation",743],["Viral_Infection","Microbiome_Disruption",731],["Heavy_Metals","Inflammation",707],["Viral_Infection","Signaling_Disruption",684],["Alcohol","Signaling_Disruption",660],["Heavy_Metals","Microbiome_Disruption",585],["Diet_Nutrition","Epigenetic_Changes",561],["Tobacco_Smoke","Signaling_Disruption",561],["Diet_Nutrition","Immune_Dysfunction",508],["Air_Pollution","Signaling_Disruption",506],["Bacterial_Infection","Immune_Dysfunction",473],["Drugs_Medications","Signaling_Disruption",463],["Heavy_Metals","Receptor_Activation",437],["Viral_Infection","Immune_Dysfunction",423],["Diet_Nutrition","Oxidative_Stress",416],["Diet_Nutrition","Senescence",409],["Tobacco_Smoke","Inflammation",383],["Air_Pollution","Inflammation",380],["Heavy_Metals","Epigenetic_Changes",369],["Drugs_Medications","Inflammation",368],["Bacterial_Infection","Receptor_Activation",366],["Alcohol","Inflammation",363],["Alcohol","Receptor_Activation",336],["Heavy_Metals","Immune_Dysfunction",335],["Viral_Infection","Receptor_Activation",333],["Heavy_Metals","Oxidative_Stress",314],["Drugs_Medications","Microbiome_Disruption",303],["Diet_Nutrition","Endocrine_Disruption",290],["Radiation","Signaling_Disruption",281],["Drugs_Medications","Receptor_Activation",264],["Air_Pollution","Oxidative_Stress",252],["Tobacco_Smoke","Receptor_Activation",246],["Diet_Nutrition","Neurodegeneration",243],["Diet_Nutrition","Barrier_Disruption",233],["Alcohol","Microbiome_Disruption",230],["Heavy_Metals","Senescence",228],["Diet_Nutrition","Cell_Death",216],["Tobacco_Smoke","Oxidative_Stress",213],["Alcohol","Epigenetic_Changes",207],["Heavy_Metals","Neurodegeneration",196],["Tobacco_Smoke","Epigenetic_Changes",193],["Alcohol","Oxidative_Stress",179],["Tobacco_Smoke","DNA_Damage",176],["Alcohol","Immune_Dysfunction",176],["Radiation","Inflammation",172],["Heavy_Metals","DNA_Damage",170],["Air_Pollution","Receptor_Activation",168],["Air_Pollution","Immune_Dysfunction",168],["Heavy_Metals","Barrier_Disruption",167],["Diet_Nutrition","Mitochondrial_Dysfunction",167],["Heavy_Metals","Cell_Death",164],["Tobacco_Smoke","Immune_Dysfunction",162],["Bacterial_Infection","Barrier_Disruption",159],["Air_Pollution","Epigenetic_Changes",155],["Drugs_Medications","Immune_Dysfunction",145],["Viral_Infection","Epigenetic_Changes",137],["Alcohol","Senescence",136],["Heavy_Metals","Endocrine_Disruption",134],["Viral_Infection","Cell_Death",129],["Diet_Nutrition","DNA_Damage",128],["Viral_Infection","Barrier_Disruption",128],["Pesticides","Signaling_Disruption",126],["PAHs_Dioxins_PCBs","Signaling_Disruption",126],["Viral_Infection","Senescence",124],["Air_Pollution","Senescence",122],["Hypoxia","Signaling_Disruption",120],["Radiation","Oxidative_Stress",116],["PFAS","Signaling_Disruption",115],["Drugs_Medications","Oxidative_Stress",115],["Alcohol","Barrier_Disruption",112],["Drugs_Medications","Epigenetic_Changes",112],["Radiation","Receptor_Activation",111],["Bacterial_Infection","Cell_Death",111],["Tobacco_Smoke","Cell_Death",110],["Drugs_Medications","Neurodegeneration",110],["Bacterial_Infection","Epigenetic_Changes",110],["Heavy_Metals","Mitochondrial_Dysfunction",109],["Air_Pollution","Neurodegeneration",105],["Tobacco_Smoke","Senescence",105],["Drugs_Medications","Senescence",104],["Diet_Nutrition","Metabolic_Disruption",101],["Viral_Infection","Oxidative_Stress",100],["Bacterial_Infection","Oxidative_Stress",100],["Hypoxia","Inflammation",100],["Bacterial_Infection","Senescence",97],["Tobacco_Smoke","Microbiome_Disruption",96],["Drugs_Medications","Barrier_Disruption",96],["Diet_Nutrition","Protein_Stress",95],["PAHs_Dioxins_PCBs","Receptor_Activation",93],["Alcohol","Cell_Death",93],["Radiation","Immune_Dysfunction",92],["Phthalates_BPA","Signaling_Disruption",90],["Alcohol","DNA_Damage",90],["Drugs_Medications","Cell_Death",90],["Alcohol","Neurodegeneration",87],["Alcohol","Endocrine_Disruption",85],["Radiation","DNA_Damage",84],["Bacterial_Infection","Neurodegeneration",84],["Air_Pollution","Microbiome_Disruption",79],["Pesticides","Neurodegeneration",78],["Radiation","Microbiome_Disruption",77],["Radiation","Epigenetic_Changes",71],["Phthalates_BPA","Endocrine_Disruption",70],["Bacterial_Infection","Endocrine_Disruption",70],["Radiation","Senescence",68],["Radiation","Cell_Death",67],["Pesticides","Inflammation",65],["Heavy_Metals","Metabolic_Disruption",64],["Pesticides","Receptor_Activation",63],["Bacterial_Infection","Metabolic_Disruption",63],["Air_Pollution","DNA_Damage",62],["Phthalates_BPA","Receptor_Activation",62],["Bacterial_Infection","DNA_Damage",62],["Hypoxia","Receptor_Activation",62],["Drugs_Medications","DNA_Damage",61],["Air_Pollution","Cell_Death",60],["Pesticides","Oxidative_Stress",59],["Solvents","Signaling_Disruption",59],["Phthalates_BPA","Epigenetic_Changes",58],["PAHs_Dioxins_PCBs","Oxidative_Stress",58],["Tobacco_Smoke","Mitochondrial_Dysfunction",58],["Heavy_Metals","Protein_Stress",57],["Tobacco_Smoke","Endocrine_Disruption",57],["Viral_Infection","DNA_Damage",57],["Viral_Infection","Metabolic_Disruption",56],["Hypoxia","Oxidative_Stress",56],["PAHs_Dioxins_PCBs","Inflammation",55],["Viral_Infection","Endocrine_Disruption",55],["Tobacco_Smoke","Metabolic_Disruption",54],["Pesticides","Epigenetic_Changes",52],["Tobacco_Smoke","Neurodegeneration",52],["Hypoxia","Microbiome_Disruption",52],["Air_Pollution","Endocrine_Disruption",51],["PFAS","Endocrine_Disruption",51],["Alcohol","Mitochondrial_Dysfunction",51],["Viral_Infection","Neurodegeneration",51],["Tobacco_Smoke","Barrier_Disruption",50],["PAHs_Dioxins_PCBs","Epigenetic_Changes",49],["Solvents","DNA_Damage",49],["Drugs_Medications","Metabolic_Disruption",49],["Air_Pollution","Barrier_Disruption",48],["Pesticides","Endocrine_Disruption",47],["Drugs_Medications","Endocrine_Disruption",47],["Viral_Infection","Mitochondrial_Dysfunction",47],["Pesticides","Barrier_Disruption",46],["Radiation","Mitochondrial_Dysfunction",46],["Radiation","Endocrine_Disruption",46],["PAHs_Dioxins_PCBs","Endocrine_Disruption",44],["Radiation","Neurodegeneration",44],["Hypoxia","Immune_Dysfunction",43],["Pesticides","Senescence",40],["PFAS","Epigenetic_Changes",40],["Flame_Retardants","Signaling_Disruption",40],["PFAS","Inflammation",39],["Drugs_Medications","Mitochondrial_Dysfunction",39],["Solvents","Inflammation",38],["Flame_Retardants","Endocrine_Disruption",36],["Alcohol","Protein_Stress",36],["PFAS","Receptor_Activation",35],["Solvents","Oxidative_Stress",35],["Alcohol","Metabolic_Disruption",34],["Hypoxia","Senescence",34],["PAHs_Dioxins_PCBs","DNA_Damage",33],["Flame_Retardants","Receptor_Activation",33],["Tobacco_Smoke","Protein_Stress",33],["Viral_Infection","Protein_Stress",33],["Pesticides","Cell_Death",31],["PAHs_Dioxins_PCBs","Metabolic_Disruption",31],["Pesticides","Microbiome_Disruption",30],["Phthalates_BPA","Inflammation",30],["Air_Pollution","Mitochondrial_Dysfunction",29],["Hypoxia","Cell_Death",29],["PAHs_Dioxins_PCBs","Microbiome_Disruption",28],["PAHs_Dioxins_PCBs","Immune_Dysfunction",28],["Radiation","Barrier_Disruption",28],["Bacterial_Infection","Mitochondrial_Dysfunction",27],["PFAS","Immune_Dysfunction",26],["Air_Pollution","Protein_Stress",25],["Flame_Retardants","Inflammation",25],["Flame_Retardants","Epigenetic_Changes",25],["Hypoxia","Epigenetic_Changes",25]
+];
+
+// Colors
+const chemColor = "#2171b5";
+const lifeColor = "#238b45";
+const mechColor = "#d94801";
+
+// Build all nodes in order: chemical, then gap marker, then lifestyle, then mechanisms
+const allExposures = [...chemicalExposures, ...lifestyleExposures];
+const allNodes = [...allExposures, ...mechanismList];
+const nodeIndex = new Map(allNodes.map((n,i) => [n,i]));
+
+// Build links (filter minimum value)
+const minVal = 25;
+const links = linksData.filter(d => d[2] >= minVal).map(d => ({
+    source: nodeIndex.get(d[0]),
+    target: nodeIndex.get(d[1]),
+    value: d[2]
+}));
+
+// Dimensions
+const margin = {left: 180, right: 200, top: 50, bottom: 30};
+const width = 1350;
+const height = 950;
+const gap = 50; // gap between chemical and lifestyle groups
+
+const svg = d3.select("#chart")
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+const g = svg.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+// Create sankey
+const sankey = d3.sankey()
+    .nodeWidth(18)
+    .nodePadding(6)
+    .nodeSort(null)
+    .extent([[0, 0], [width - margin.left - margin.right, height - margin.top - margin.bottom - gap]]);
+
+const graph = sankey({
+    nodes: allNodes.map(name => ({name})),
+    links: links.map(d => ({...d}))
+});
+
+// Separate nodes by type
+const chemNodes = graph.nodes.filter(n => chemicalExposures.includes(n.name));
+const lifeNodes = graph.nodes.filter(n => lifestyleExposures.includes(n.name));
+const mechNodes = graph.nodes.filter(n => mechanismList.includes(n.name));
+
+// Calculate total heights
+const chemHeight = d3.sum(chemNodes, n => n.y1 - n.y0) + (chemNodes.length - 1) * 6;
+const lifeHeight = d3.sum(lifeNodes, n => n.y1 - n.y0) + (lifeNodes.length - 1) * 6;
+
+// Reposition chemical nodes at top
+let y = 0;
+chemNodes.forEach(node => {
+    const h = node.y1 - node.y0;
+    node.y0 = y;
+    node.y1 = y + h;
+    y += h + 6;
+});
+
+// Reposition lifestyle nodes below with gap
+y = chemHeight + gap;
+lifeNodes.forEach(node => {
+    const h = node.y1 - node.y0;
+    node.y0 = y;
+    node.y1 = y + h;
+    y += h + 6;
+});
+
+// Update the links
+sankey.update(graph);
+
+// Group labels
+g.append("text").attr("class", "group-label")
+    .attr("x", -8).attr("y", -12).attr("text-anchor", "end")
+    .style("fill", chemColor).text("Chemical Exposures");
+
+g.append("text").attr("class", "group-label")
+    .attr("x", -8).attr("y", chemHeight + gap - 12).attr("text-anchor", "end")
+    .style("fill", lifeColor).text("Lifestyle / Biological");
+
+g.append("text").attr("class", "group-label")
+    .attr("x", width - margin.left - margin.right + 25).attr("y", -12).attr("text-anchor", "start")
+    .style("fill", mechColor).text("Mechanisms of Harm");
+
+// Separator line
+g.append("line")
+    .attr("x1", -margin.left + 20).attr("x2", 180)
+    .attr("y1", chemHeight + gap/2).attr("y2", chemHeight + gap/2)
+    .attr("stroke", "#ccc").attr("stroke-dasharray", "4,4");
+
+// Gradients for links
+const defs = svg.append("defs");
+graph.links.forEach((link, i) => {
+    const srcColor = chemicalExposures.includes(link.source.name) ? chemColor : lifeColor;
+    const grad = defs.append("linearGradient")
+        .attr("id", `lg${i}`)
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", link.source.x1).attr("x2", link.target.x0);
+    grad.append("stop").attr("offset", "0%").attr("stop-color", srcColor);
+    grad.append("stop").attr("offset", "100%").attr("stop-color", mechColor);
+});
+
+// Draw links
+const linkPaths = g.append("g").selectAll("path")
+    .data(graph.links)
+    .join("path")
+    .attr("class", "link")
+    .attr("d", d3.sankeyLinkHorizontal())
+    .attr("stroke", (d,i) => `url(#lg${i})`)
+    .attr("stroke-width", d => Math.max(1, d.width));
+
+linkPaths.append("title")
+    .text(d => `${d.source.name.replace(/_/g,' ')} → ${d.target.name.replace(/_/g,' ')}\n${d.value} grants`);
+
+// Draw nodes
+const nodeGroups = g.append("g").selectAll("g")
+    .data(graph.nodes)
+    .join("g")
+    .attr("class", "node");
+
+nodeGroups.append("rect")
+    .attr("x", d => d.x0)
+    .attr("y", d => d.y0)
+    .attr("height", d => d.y1 - d.y0)
+    .attr("width", d => d.x1 - d.x0)
+    .attr("fill", d => {
+        if (chemicalExposures.includes(d.name)) return chemColor;
+        if (lifestyleExposures.includes(d.name)) return lifeColor;
+        return mechColor;
+    })
+    .on("click", handleClick);
+
+nodeGroups.append("text")
+    .attr("x", d => mechanismList.includes(d.name) ? d.x1 + 6 : d.x0 - 6)
+    .attr("y", d => (d.y0 + d.y1) / 2)
+    .attr("dy", "0.35em")
+    .attr("text-anchor", d => mechanismList.includes(d.name) ? "start" : "end")
+    .style("fill", d => {
+        if (chemicalExposures.includes(d.name)) return chemColor;
+        if (lifestyleExposures.includes(d.name)) return lifeColor;
+        return mechColor;
+    })
+    .text(d => d.name.replace(/_/g, ' '));
+
+nodeGroups.append("title")
+    .text(d => d.name.replace(/_/g,' '));
+
+// Click handler
+function handleClick(event, d) {
+    event.stopPropagation();
+    const name = d.name;
+    const isExposure = allExposures.includes(name);
+
+    const connectedLinks = graph.links.filter(l =>
+        isExposure ? l.source.name === name : l.target.name === name
+    );
+
+    const connectedNodes = new Set([name]);
+    connectedLinks.forEach(l => {
+        connectedNodes.add(l.source.name);
+        connectedNodes.add(l.target.name);
+    });
+
+    linkPaths.classed("faded", true).classed("highlighted", false)
+        .filter(l => isExposure ? l.source.name === name : l.target.name === name)
+        .classed("faded", false).classed("highlighted", true);
+
+    nodeGroups.classed("faded", n => !connectedNodes.has(n.name));
+
+    // Info panel
+    const panel = document.getElementById("info-panel");
+    document.getElementById("panel-title").textContent = name.replace(/_/g,' ');
+    document.getElementById("panel-title").style.borderColor =
+        chemicalExposures.includes(name) ? chemColor :
+        lifestyleExposures.includes(name) ? lifeColor : mechColor;
+
+    connectedLinks.sort((a,b) => b.value - a.value);
+    document.getElementById("panel-connections").innerHTML = connectedLinks.map(l => {
+        const other = isExposure ? l.target.name : l.source.name;
+        return `<div class="connection"><span>${other.replace(/_/g,' ')}</span><strong>${l.value}</strong></div>`;
+    }).join('');
+
+    panel.style.display = "block";
+}
+
+function clearHighlight() {
+    linkPaths.classed("faded", false).classed("highlighted", false);
+    nodeGroups.classed("faded", false);
+    document.getElementById("info-panel").style.display = "none";
+}
+window.clearHighlight = clearHighlight;
+d3.select("body").on("click", clearHighlight);
+</script>
+</body>
+</html>

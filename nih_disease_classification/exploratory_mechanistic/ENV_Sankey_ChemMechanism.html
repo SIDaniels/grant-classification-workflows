@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Environmental Exposure → Mechanism: NIH Grant Analysis</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0f;
+      color: #e5e5e5;
+      min-height: 100vh;
+    }
+    header { padding: 16px 24px; border-bottom: 1px solid #1f2937; }
+    h1 { font-size: 1.1rem; font-weight: 600; }
+    .subtitle { font-size: 0.75rem; color: #6b7280; margin-top: 2px; }
+
+    .main-content { display: flex; height: calc(100vh - 70px); }
+
+    .viz-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .sankey-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .sankey-section {
+      position: relative;
+      height: 520px;
+      width: 500px;
+    }
+
+    .sankey-section svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    .node {
+      position: absolute;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .node:hover { transform: scale(1.05); z-index: 10; }
+    .node.active { box-shadow: 0 0 15px var(--glow); }
+
+    .node-exp {
+      background: #60a5fa22;
+      border: 1px solid #60a5fa;
+      color: #60a5fa;
+      --glow: #60a5fa66;
+    }
+    .node-mech {
+      background: #e8a04022;
+      border: 1px solid #e8a040;
+      color: #e8a040;
+      --glow: #e8a04066;
+    }
+
+    .node-count {
+      font-size: 9px;
+      opacity: 0.7;
+      margin-left: 4px;
+    }
+
+    .flow-path {
+      fill: none;
+      opacity: 0.35;
+      transition: opacity 0.3s;
+    }
+    .flow-path.highlight { opacity: 0.9; }
+    .flow-path.dim { opacity: 0.08; }
+
+    .section-label {
+      position: absolute;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #555;
+    }
+
+    .detail-panel {
+      width: 340px;
+      background: #111118;
+      border-left: 1px solid #1f2937;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .panel-header { margin-bottom: 12px; }
+    .panel-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .panel-subtitle { font-size: 10px; color: #6b7280; }
+
+    .grant-card {
+      display: block;
+      padding: 8px;
+      margin-bottom: 5px;
+      background: #1a1a24;
+      border-radius: 4px;
+      border-left: 3px solid var(--card-color);
+      text-decoration: none;
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .grant-card:hover { background: #252530; }
+    .grant-title { font-size: 10px; color: #e5e5e5; line-height: 1.3; }
+    .grant-meta { font-size: 9px; color: #6b7280; margin-top: 3px; }
+
+    .section-title {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-weight: 600;
+      margin: 12px 0 6px;
+    }
+
+    .placeholder {
+      text-align: center;
+      padding: 40px 20px;
+      color: #555;
+    }
+    .placeholder-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.4; }
+
+    .info-box {
+      padding: 10px;
+      border-radius: 5px;
+      background: #1a1a24;
+      border: 1px solid #333;
+      margin-top: 12px;
+    }
+    .info-box-text { font-size: 10px; color: #9ca3af; line-height: 1.4; }
+
+    .stat-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-box {
+      flex: 1;
+      background: #1a1a24;
+      border-radius: 5px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-num { font-size: 20px; font-weight: 700; }
+    .stat-label { font-size: 8px; color: #6b7280; margin-top: 3px; }
+
+    .link-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 8px;
+      margin-bottom: 3px;
+      background: #1a1a24;
+      border-radius: 4px;
+      font-size: 10px;
+    }
+    .link-value { color: #60a5fa; font-weight: 600; }
+
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      gap: 20px;
+      font-size: 10px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Environmental Exposure to Mechanism Pathways</h1>
+    <p class="subtitle">8,735 NIH Environmental Grants (FY2022-2025) · Click nodes to explore connections</p>
+  </header>
+
+  <div class="main-content">
+    <div class="viz-area">
+      <div class="sankey-wrapper">
+        <div class="sankey-section" id="sankey">
+          <svg viewBox="0 0 500 520" id="sankey-svg"></svg>
+          <span class="section-label" style="top:-18px;left:10px;color:#60a5fa">Chemical Exposures</span>
+          <span class="section-label" style="top:-18px;right:10px;color:#e8a040">Mechanisms/Endpoints</span>
+          <div id="nodes-container"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div> Exposure Type</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e8a040"></div> Mechanism/Endpoint</div>
+      </div>
+    </div>
+
+    <div class="detail-panel" id="panel">
+      <div class="placeholder">
+        <div class="placeholder-icon">&#8592;</div>
+        <p style="font-size:10px">Click nodes to explore<br>exposure-mechanism connections</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  // Data from analysis
+  const exposures = [
+    { name: 'Heavy_Metals', count: 597, y: 30 },
+    { name: 'Air_Pollution', count: 273, y: 90 },
+    { name: 'PFAS', count: 241, y: 150 },
+    { name: 'Pesticides', count: 141, y: 210 },
+    { name: 'Phthalates_BPA', count: 103, y: 270 },
+    { name: 'Dioxins_PCBs', count: 100, y: 330 },
+    { name: 'Solvents', count: 49, y: 390 },
+  ];
+
+  const mechanisms = [
+    { name: 'Metabolic_disruption', count: 1106, y: 20 },
+    { name: 'Developmental_abnormalities', count: 965, y: 60 },
+    { name: 'Neurodegeneration', count: 893, y: 100 },
+    { name: 'Lung_injury', count: 725, y: 145 },
+    { name: 'Immune_dysfunction', count: 550, y: 190 },
+    { name: 'Cardiovascular_damage', count: 353, y: 235 },
+    { name: 'Liver_damage', count: 308, y: 280 },
+    { name: 'Hormone_disruption', count: 285, y: 325 },
+    { name: 'Kidney_damage', count: 128, y: 370 },
+    { name: 'Reproductive_harm', count: 58, y: 415 },
+    { name: 'DNA_damage', count: 56, y: 460 },
+  ];
+
+  const links = [
+    { source: 'Air_Pollution', target: 'Lung_injury', value: 100 },
+    { source: 'Heavy_Metals', target: 'Neurodegeneration', value: 76 },
+    { source: 'Heavy_Metals', target: 'Metabolic_disruption', value: 66 },
+    { source: 'Heavy_Metals', target: 'Developmental_abnormalities', value: 52 },
+    { source: 'Heavy_Metals', target: 'Lung_injury', value: 52 },
+    { source: 'Pesticides', target: 'Neurodegeneration', value: 48 },
+    { source: 'Dioxins_PCBs', target: 'Hormone_disruption', value: 36 },
+    { source: 'PFAS', target: 'Developmental_abnormalities', value: 30 },
+    { source: 'Phthalates_BPA', target: 'Hormone_disruption', value: 29 },
+    { source: 'Heavy_Metals', target: 'Immune_dysfunction', value: 26 },
+    { source: 'Phthalates_BPA', target: 'Developmental_abnormalities', value: 24 },
+    { source: 'Air_Pollution', target: 'Neurodegeneration', value: 23 },
+    { source: 'Air_Pollution', target: 'Developmental_abnormalities', value: 21 },
+    { source: 'Heavy_Metals', target: 'Liver_damage', value: 18 },
+    { source: 'Air_Pollution', target: 'Cardiovascular_damage', value: 18 },
+    { source: 'PFAS', target: 'Metabolic_disruption', value: 17 },
+    { source: 'Pesticides', target: 'Metabolic_disruption', value: 17 },
+    { source: 'Pesticides', target: 'Developmental_abnormalities', value: 16 },
+    { source: 'PFAS', target: 'Immune_dysfunction', value: 15 },
+    { source: 'Heavy_Metals', target: 'Kidney_damage', value: 14 },
+    { source: 'PFAS', target: 'Liver_damage', value: 13 },
+    { source: 'Heavy_Metals', target: 'Cardiovascular_damage', value: 13 },
+    { source: 'Air_Pollution', target: 'Metabolic_disruption', value: 12 },
+    { source: 'Dioxins_PCBs', target: 'Developmental_abnormalities', value: 12 },
+    { source: 'Air_Pollution', target: 'Immune_dysfunction', value: 11 },
+    { source: 'PFAS', target: 'Reproductive_harm', value: 11 },
+    { source: 'Dioxins_PCBs', target: 'Immune_dysfunction', value: 10 },
+    { source: 'Pesticides', target: 'Immune_dysfunction', value: 10 },
+    { source: 'Phthalates_BPA', target: 'Metabolic_disruption', value: 9 },
+    { source: 'Phthalates_BPA', target: 'Reproductive_harm', value: 9 },
+    { source: 'Solvents', target: 'Neurodegeneration', value: 8 },
+    { source: 'Heavy_Metals', target: 'Reproductive_harm', value: 7 },
+    { source: 'PFAS', target: 'Neurodegeneration', value: 7 },
+    { source: 'Dioxins_PCBs', target: 'Liver_damage', value: 6 },
+    { source: 'Dioxins_PCBs', target: 'Metabolic_disruption', value: 6 },
+    { source: 'Pesticides', target: 'Liver_damage', value: 6 },
+    { source: 'Pesticides', target: 'Cardiovascular_damage', value: 5 },
+    { source: 'Solvents', target: 'Liver_damage', value: 5 },
+    { source: 'Heavy_Metals', target: 'DNA_damage', value: 4 },
+    { source: 'Phthalates_BPA', target: 'Neurodegeneration', value: 4 },
+    { source: 'PFAS', target: 'Cardiovascular_damage', value: 4 },
+    { source: 'Solvents', target: 'Developmental_abnormalities', value: 4 },
+    { source: 'Pesticides', target: 'Reproductive_harm', value: 4 },
+    { source: 'Dioxins_PCBs', target: 'Neurodegeneration', value: 3 },
+    { source: 'Dioxins_PCBs', target: 'Cardiovascular_damage', value: 3 },
+    { source: 'Air_Pollution', target: 'Liver_damage', value: 3 },
+    { source: 'Phthalates_BPA', target: 'Cardiovascular_damage', value: 3 },
+    { source: 'Solvents', target: 'Metabolic_disruption', value: 3 },
+    { source: 'Phthalates_BPA', target: 'Liver_damage', value: 2 },
+    { source: 'Phthalates_BPA', target: 'Immune_dysfunction', value: 2 },
+    { source: 'Heavy_Metals', target: 'Hormone_disruption', value: 2 },
+    { source: 'Solvents', target: 'Kidney_damage', value: 2 },
+    { source: 'PFAS', target: 'Hormone_disruption', value: 2 },
+    { source: 'Pesticides', target: 'Kidney_damage', value: 2 },
+    { source: 'PFAS', target: 'DNA_damage', value: 1 },
+    { source: 'Dioxins_PCBs', target: 'Kidney_damage', value: 1 },
+    { source: 'Solvents', target: 'Cardiovascular_damage', value: 1 },
+    { source: 'Pesticides', target: 'DNA_damage', value: 1 },
+    { source: 'Dioxins_PCBs', target: 'Reproductive_harm', value: 1 },
+    { source: 'Solvents', target: 'Immune_dysfunction', value: 1 },
+    { source: 'Air_Pollution', target: 'Kidney_damage', value: 1 },
+    { source: 'Pesticides', target: 'Lung_injury', value: 1 },
+    { source: 'Phthalates_BPA', target: 'Lung_injury', value: 1 },
+    { source: 'PFAS', target: 'Lung_injury', value: 1 },
+  ];
+
+  let selected = null;
+
+  // Build lookup maps
+  const expMap = {};
+  exposures.forEach(e => expMap[e.name] = e);
+  const mechMap = {};
+  mechanisms.forEach(m => mechMap[m.name] = m);
+
+  // Create SVG paths
+  const svg = document.getElementById('sankey-svg');
+  const nodesContainer = document.getElementById('nodes-container');
+
+  // Draw flow paths
+  links.forEach((link, i) => {
+    const exp = expMap[link.source];
+    const mech = mechMap[link.target];
+    if (!exp || !mech) return;
+
+    const x1 = 120;
+    const y1 = exp.y + 15;
+    const x2 = 380;
+    const y2 = mech.y + 15;
+    const cx = 250;
+
+    const strokeWidth = Math.max(1, Math.min(15, link.value / 8));
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'flow-path');
+    path.setAttribute('id', `path-${link.source}-${link.target}`);
+    path.setAttribute('stroke', '#60a5fa');
+    path.setAttribute('stroke-width', strokeWidth);
+    path.setAttribute('d', `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+    path.dataset.source = link.source;
+    path.dataset.target = link.target;
+    svg.appendChild(path);
+  });
+
+  // Add gradient
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+  gradient.setAttribute('id', 'flow-gradient');
+  gradient.setAttribute('x1', '0%');
+  gradient.setAttribute('x2', '100%');
+  const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+  stop1.setAttribute('offset', '0%');
+  stop1.setAttribute('style', 'stop-color:#60a5fa');
+  const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+  stop2.setAttribute('offset', '100%');
+  stop2.setAttribute('style', 'stop-color:#e8a040');
+  gradient.appendChild(stop1);
+  gradient.appendChild(stop2);
+  defs.appendChild(gradient);
+  svg.insertBefore(defs, svg.firstChild);
+
+  // Create exposure nodes
+  exposures.forEach(exp => {
+    const node = document.createElement('div');
+    node.className = 'node node-exp';
+    node.style.left = '5px';
+    node.style.top = exp.y + 'px';
+    node.dataset.id = exp.name;
+    node.dataset.type = 'exp';
+    node.innerHTML = `${exp.name.replace(/_/g, ' ')} <span class="node-count">${exp.count}</span>`;
+    nodesContainer.appendChild(node);
+  });
+
+  // Create mechanism nodes
+  mechanisms.forEach(mech => {
+    const node = document.createElement('div');
+    node.className = 'node node-mech';
+    node.style.right = '5px';
+    node.style.top = mech.y + 'px';
+    node.dataset.id = mech.name;
+    node.dataset.type = 'mech';
+    node.innerHTML = `${mech.name.replace(/_/g, ' ')} <span class="node-count">${mech.count}</span>`;
+    nodesContainer.appendChild(node);
+  });
+
+  function updatePaths() {
+    document.querySelectorAll('.flow-path').forEach(p => p.classList.remove('highlight', 'dim'));
+    document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+
+    if (!selected) return;
+
+    document.querySelectorAll('.flow-path').forEach(p => {
+      const matches = (selected.type === 'exp' && p.dataset.source === selected.id) ||
+                      (selected.type === 'mech' && p.dataset.target === selected.id);
+      if (matches) {
+        p.classList.add('highlight');
+        p.setAttribute('stroke', 'url(#flow-gradient)');
+      } else {
+        p.classList.add('dim');
+      }
+    });
+
+    document.querySelectorAll(`.node[data-id="${selected.id}"]`).forEach(n => n.classList.add('active'));
+  }
+
+  function renderPanel() {
+    const panel = document.getElementById('panel');
+
+    if (!selected) {
+      panel.innerHTML = `<div class="placeholder"><div class="placeholder-icon">&#8592;</div><p style="font-size:10px">Click nodes to explore<br>exposure-mechanism connections</p></div>`;
+      updatePaths();
+      return;
+    }
+
+    if (selected.type === 'exp') {
+      const exp = expMap[selected.id];
+      const relatedLinks = links.filter(l => l.source === selected.id).sort((a, b) => b.value - a.value);
+      const totalLinked = relatedLinks.reduce((s, l) => s + l.value, 0);
+
+      panel.innerHTML = `
+        <div class="panel-header">
+          <div class="panel-title" style="color:#60a5fa">${selected.id.replace(/_/g, ' ')}</div>
+          <div class="panel-subtitle">Chemical Exposure Category</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-num" style="color:#60a5fa">${exp.count}</div>
+            <div class="stat-label">Total Grants</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" style="color:#e8a040">${relatedLinks.length}</div>
+            <div class="stat-label">Mechanisms Studied</div>
+          </div>
+        </div>
+        <div class="section-title">Mechanism Links (by grant count)</div>
+        ${relatedLinks.map(l => `
+          <div class="link-item">
+            <span>${l.target.replace(/_/g, ' ')}</span>
+            <span class="link-value">${l.value}</span>
+          </div>
+        `).join('')}
+        <div class="info-box">
+          <div class="info-box-text">
+            <strong>${exp.count}</strong> NIH grants study <strong>${selected.id.replace(/_/g, ' ')}</strong> exposure.
+            These link to <strong>${relatedLinks.length}</strong> different mechanisms/endpoints.
+          </div>
+        </div>
+      `;
+    }
+
+    else if (selected.type === 'mech') {
+      const mech = mechMap[selected.id];
+      const relatedLinks = links.filter(l => l.target === selected.id).sort((a, b) => b.value - a.value);
+      const totalLinked = relatedLinks.reduce((s, l) => s + l.value, 0);
+
+      panel.innerHTML = `
+        <div class="panel-header">
+          <div class="panel-title" style="color:#e8a040">${selected.id.replace(/_/g, ' ')}</div>
+          <div class="panel-subtitle">Mechanism / Health Endpoint</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-num" style="color:#e8a040">${mech.count}</div>
+            <div class="stat-label">Total Grants</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" style="color:#60a5fa">${relatedLinks.length}</div>
+            <div class="stat-label">Exposure Types</div>
+          </div>
+        </div>
+        <div class="section-title">Exposure Links (by grant count)</div>
+        ${relatedLinks.map(l => `
+          <div class="link-item">
+            <span>${l.source.replace(/_/g, ' ')}</span>
+            <span class="link-value">${l.value}</span>
+          </div>
+        `).join('')}
+        <div class="info-box">
+          <div class="info-box-text">
+            <strong>${mech.count}</strong> NIH grants study <strong>${selected.id.replace(/_/g, ' ')}</strong>.
+            Of these, <strong>${totalLinked}</strong> are linked to specific chemical exposures.
+          </div>
+        </div>
+      `;
+    }
+
+    updatePaths();
+  }
+
+  document.querySelectorAll('.node').forEach(node => {
+    node.addEventListener('click', () => {
+      const id = node.dataset.id;
+      const type = node.dataset.type;
+      if (selected && selected.id === id && selected.type === type) {
+        selected = null;
+      } else {
+        selected = { type, id };
+      }
+      renderPanel();
+    });
+  });
+
+  renderPanel();
+})();
+</script>
+</body>
+</html>

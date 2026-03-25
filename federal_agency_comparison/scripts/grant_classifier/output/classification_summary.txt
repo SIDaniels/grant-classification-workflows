@@ -1,0 +1,243 @@
+FEDERAL GRANTS CLASSIFICATION REPORT
+============================================================
+Biomining and Critical Minerals Research Grants
+Updated: March 02, 2026
+
+1. EXECUTIVE SUMMARY
+------------------------------------------------------------
+This document describes the complete methodology for acquiring and classifying
+324 federal grants totaling $1.21 billion related to mining, critical minerals
+extraction, and related research areas. The grants were sourced from three
+federal agencies via their public APIs.
+
+Classification uses three orthogonal taxonomies:
+  - Materials: The specific minerals or materials being studied
+  - Topics: The research focus area
+  - Biotech Strategies: Whether biotechnology approaches are used
+
+
+2. DATA ACQUISITION METHODOLOGY
+------------------------------------------------------------
+Grant data was acquired programmatically from three federal agency APIs.
+
+2.1 Department of Energy (DOE) via USAspending.gov
+------------------------------------------------------------
+API Endpoint: https://api.usaspending.gov/api/v2/search/spending_by_award/
+
+Query Parameters:
+  - Agency filter: "Department of Energy" (top-tier awarding agency)
+  - Time period: 2022-01-01 to 2025-12-31
+  - Award type codes: ["02", "03", "04", "05"] (block/project grants)
+  - Page size: 100 results per request
+  - Rate limit: 200ms between requests
+
+Fields Retrieved:
+  - Award ID (unique identifier)
+  - Recipient Name (institution)
+  - Award Amount
+  - Description (used as both title and abstract)
+  - Start Date / End Date
+  - CFDA Number (program code)
+  - Awarding agency name
+  - Recipient state code
+
+Grant ID Pattern: IDs starting with "DE" (DESC, DEFE, DEAR, DENA, DEMS, DEEE)
+
+
+2.2 National Science Foundation (NSF) Awards API
+------------------------------------------------------------
+API Endpoint: https://api.nsf.gov/services/v1/awards.json
+
+Query Strategy:
+  - Pagination: Monthly date ranges to avoid 10,000 result limit
+  - Results per page: 25 (NSF maximum)
+  - Date range: 2022-01-01 to 2025-12-31
+  - Rate limit: 100ms between requests
+
+Fields Retrieved:
+  - id (award number)
+  - title
+  - abstractText (full abstract)
+  - awardeeName (institution)
+  - awardeeStateCode
+  - estimatedTotalAmt / fundsObligatedAmt
+  - startDate / expDate
+  - fundProgramName / primaryProgram
+  - pdPIName (principal investigator)
+  - dirAbbr / divAbbr (directorate/division)
+
+Grant ID Pattern: Purely numeric IDs (e.g., 2538354, 2527909)
+
+
+2.3 Department of Defense (DoD) via USAspending.gov
+------------------------------------------------------------
+DoD grants retrieved via USAspending.gov with agency-specific filters.
+
+Agency Filter: Department of Defense (Army, Navy, Air Force)
+
+Grant ID Patterns:
+  - W9* / W911* - Army contracts and grants
+  - FA* / FA865* / FA955* - Air Force Research Laboratory
+  - N0* / N000* - Navy grants
+  - N6* / N629* - Naval contracts
+
+
+2.4 Initial Data Filtering
+------------------------------------------------------------
+After retrieval, grants were filtered using keyword-based pre-filtering:
+  - Rare earth, REE, lanthanide, yttrium, scandium
+  - Critical minerals, strategic minerals
+  - Biomining, bioleaching, bioextraction
+  - Coal ash, coal byproduct, acid mine drainage
+  - Lithium, cobalt, nickel, manganese (battery materials)
+  - Mineral extraction, metal recovery, separation
+
+
+3. FUNDING SUMMARY
+------------------------------------------------------------
+Total Grants:             324
+Total Funding:            $1,212,382,090 ($1.21B)
+
+By Agency:
+  DOE:                    171 grants    $1,021.2M  ( 84.2%)
+  DoD:                     32 grants      $131.5M  ( 10.8%)
+  NSF:                    121 grants       $59.7M  (  4.9%)
+
+Classification Coverage:
+  With Materials Tags:    273 grants  ( 84.3%)
+  With Topics Tags:       223 grants  ( 68.8%)
+  Biotech Grants:          21 grants  (  6.5%)   $17.0M
+  Missing Materials:       51 grants  ( 15.7%)
+  Missing Topics:         101 grants  ( 31.2%)
+
+
+4. CLASSIFICATION PIPELINE
+------------------------------------------------------------
+The classification system employs a two-stage hybrid approach combining fast
+keyword matching with LLM-assisted classification for ambiguous cases.
+
+4.1 Stage 1: Keyword Classification
+------------------------------------------------------------
+For each grant, the keyword classifier:
+  1. Converts title and description to lowercase
+  2. Checks keywords against title (2x weight) and description (1x weight)
+  3. Applies regex pattern matching (1.5x weight)
+  4. Calculates confidence as ratio of actual to maximum score
+  5. Accepts grants with confidence >= 0.7
+  6. Routes lower confidence to Stage 2
+
+4.2 Stage 2: LLM Classification
+------------------------------------------------------------
+Grants without high-confidence keyword matches are processed by Claude Sonnet.
+
+LLM Configuration:
+  - Model: claude-sonnet-4-20250514
+  - Max Tokens: 500
+  - Temperature: 0.0 (deterministic)
+  - Rate Limiting: 60 requests per minute
+  - Retry Logic: Exponential backoff, 3 max retries
+
+Prompt Structure:
+  - Grant ID and full description text
+  - Complete taxonomy definitions with category descriptions
+  - Instructions to return JSON with categories, confidence, reasoning
+  - Guidance to return empty lists when no categories apply
+
+4.3 Stage 3: Validation
+------------------------------------------------------------
+  - JSON extracted from markdown-wrapped responses
+  - Categories validated against predefined taxonomy
+  - Invalid categories filtered out
+  - Confidence levels preserved for quality assessment
+
+
+5. MATERIALS DISTRIBUTION (by Funding)
+------------------------------------------------------------
+  critical_minerals        73 grants    $723.0M  ( 59.6%)
+  general_mineral          23 grants    $384.7M  ( 31.7%)
+  rare_earth              174 grants    $341.0M  ( 28.1%)
+  copper                    4 grants    $272.7M  ( 22.5%)
+  nickel                    9 grants    $251.0M  ( 20.7%)
+  battery_materials         5 grants    $131.1M  ( 10.8%)
+  coal_byproduct           29 grants     $42.7M  (  3.5%)
+  lithium                  21 grants     $23.2M  (  1.9%)
+  uranium                   8 grants     $10.7M  (  0.9%)
+  cobalt                    6 grants      $8.8M  (  0.7%)
+  manganese                 5 grants      $7.4M  (  0.6%)
+  gold                      4 grants      $4.3M  (  0.4%)
+  phosphate                 5 grants      $1.7M  (  0.1%)
+  zinc                      1 grants      $0.3M  (  0.0%)
+
+Note: Percentages based on total funding. Grants may have multiple materials tags.
+
+
+6. TOPICS DISTRIBUTION (by Funding)
+------------------------------------------------------------
+  recycling                21 grants    $422.7M  ( 34.9%)
+  extraction               95 grants    $103.3M  (  8.5%)
+  separation_purification  47 grants     $69.4M  (  5.7%)
+  process_development       8 grants     $62.9M  (  5.2%)
+  environmental            47 grants     $39.5M  (  3.3%)
+  fundamental_science      18 grants     $14.2M  (  1.2%)
+  characterization         16 grants     $13.3M  (  1.1%)
+  exploration              17 grants     $12.5M  (  1.0%)
+  geochemistry             13 grants      $9.5M  (  0.8%)
+  modeling_simulation      15 grants      $8.1M  (  0.7%)
+  materials_science        11 grants      $6.0M  (  0.5%)
+  waste_valorization        1 grants      $1.0M  (  0.1%)
+
+Note: Percentages based on total funding. Grants may have multiple topic tags.
+
+
+7. CATEGORY DEFINITIONS
+------------------------------------------------------------
+
+MATERIALS:
+  rare_earth:        Rare earth elements (lanthanides, REE, yttrium, scandium)
+  critical_minerals: General critical or strategic minerals
+  coal_byproduct:    Coal ash, coal combustion residuals, acid mine drainage
+  lithium:           Lithium extraction and recovery
+  general_mineral:   Non-specific mineral processing
+  nickel:            Nickel extraction and recovery
+  uranium:           Uranium extraction and recovery
+  cobalt:            Cobalt extraction and recovery
+  phosphate:         Phosphate and phosphorus recovery
+  manganese:         Manganese extraction and recovery
+  copper:            Copper extraction and recovery
+  battery_materials: General battery metals and materials
+  gold:              Gold extraction and recovery
+  zinc:              Zinc extraction and recovery
+
+TOPICS:
+  extraction:             Metal extraction, leaching, dissolution
+  environmental:          Remediation, contamination, cleanup
+  separation_purification: Separation chemistry, purification
+  recycling:              E-waste, battery recycling, material recovery
+  fundamental_science:    Basic research, mechanistic studies
+  characterization:       Analytical methods, sensing, detection
+  modeling_simulation:    Computational modeling, ML
+  exploration:            Prospecting, resource discovery
+  geochemistry:           Geochemical processes, mineral formation
+  materials_science:      Material properties, synthesis
+  process_development:    Scale-up, pilot plants
+  waste_valorization:     Converting waste to valuable products
+
+BIOTECH STRATEGIES:
+  bioleaching:          Microbial leaching of metals from ores
+  biosorption:          Use of biomass for metal adsorption
+  protein_based:        Protein engineering for metal binding (lanmodulins)
+  genetic_engineering:  Engineered organisms for mineral processing
+  enzyme_based:         Enzymatic approaches to extraction
+
+
+8. OUTPUT FILES
+------------------------------------------------------------
+  biomining_grants.csv              Main dataset with all classifications
+  materials_summary.csv             Materials category distribution
+  topics_summary.csv                Topics category distribution
+  classification_stats.csv          Summary statistics
+  biomining_grants_final.json       Complete JSON dataset
+  llm_materials_results.json        LLM results for materials
+  llm_topics_results.json           LLM results for topics
+  classification_process_documentation.docx  Complete methodology (Word)
+
