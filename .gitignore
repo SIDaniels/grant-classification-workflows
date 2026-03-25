@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Outputs (large files)
+*.json
+!sample_data/**/*.json
+
+# Temp
+*.tmp
+*.bak

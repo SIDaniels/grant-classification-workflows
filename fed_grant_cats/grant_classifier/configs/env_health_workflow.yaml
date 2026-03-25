@@ -1,0 +1,277 @@
+# Grant Classification Workflow Configuration
+# This config defines how grants are fetched, classified, and reviewed
+
+name: "Environmental Health Research"
+version: "1.0"
+description: "Classify grants into ENV (environmental exposure), MECH (biological mechanism), and OTHER"
+
+# =============================================================================
+# DATA SOURCE CONFIGURATION
+# =============================================================================
+source:
+  type: "nsf"  # Options: nsf, nih_reporter, usaspending, csv
+
+  # NSF-specific settings
+  nsf:
+    date_range:
+      start: "2022-01-01"
+      end: "2025-12-31"
+    # Split by month to avoid 10k limit
+    pagination_strategy: "monthly"
+    rate_limit_ms: 100
+
+  # For CSV input
+  csv:
+    path: null
+    id_column: "id"
+    title_column: "title"
+    abstract_column: "abstract"
+
+  # Field mappings (source field -> standard field)
+  field_mapping:
+    id: "id"
+    title: "title"
+    abstract: "abstractText"
+    amount: "estimatedTotalAmt"
+    start_date: "startDate"
+    end_date: "expDate"
+    institution: "awardeeName"
+    state: "awardeeStateCode"
+    pi_name: "pdPIName"
+    program: "fundProgramName"
+    directorate: "dirAbbr"
+
+# =============================================================================
+# CLASSIFICATION WORKFLOW
+# =============================================================================
+classification:
+  # Categories to classify into
+  categories:
+    - name: "ENV"
+      description: "Environmental exposure research"
+      subtypes:
+        - name: "ENV_HEALTH"
+          description: "Exposure with health/toxicity outcomes"
+        - name: "ENV_NOHEALTH"
+          description: "Remediation, monitoring, detection"
+
+    - name: "MECH"
+      description: "Biological mechanism research"
+
+    - name: "OTHER"
+      description: "Everything else"
+
+  # Classification pipeline (executed in order)
+  pipeline:
+    # Stage 1: Keyword-based pre-filter
+    - name: "keyword_filter"
+      type: "keyword"
+      config:
+        min_hits_required: 2
+        case_sensitive: false
+
+    # Stage 2: LLM classification for borderline cases
+    - name: "llm_classify"
+      type: "llm"
+      config:
+        model: "claude-3-haiku-20240307"
+        only_if_confidence_below: 0.7
+        batch_size: 50
+
+    # Stage 3: Directorate-based rules (NSF-specific)
+    - name: "directorate_rules"
+      type: "rule"
+      enabled: true
+
+    # Stage 4: Human review for ambiguous cases
+    - name: "human_review"
+      type: "review"
+      config:
+        trigger_confidence_below: 0.5
+        batch_size: 50
+        output_format: "csv"  # or "json"
+
+# =============================================================================
+# KEYWORD DEFINITIONS
+# =============================================================================
+keywords:
+  ENV:
+    # Core exposure terms (high weight)
+    exposure:
+      weight: 2.0
+      terms:
+        - "pfas"
+        - "microplastic"
+        - "pesticide"
+        - "herbicide"
+        - "heavy metal"
+        - "lead exposure"
+        - "mercury"
+        - "arsenic"
+        - "cadmium"
+        - "air pollution"
+        - "pm2.5"
+        - "particulate matter"
+        - "phthalate"
+        - "bpa"
+        - "bisphenol"
+        - "endocrine disruptor"
+        - "toxicant"
+        - "contaminant"
+
+    # Health outcome terms
+    health:
+      weight: 1.5
+      terms:
+        - "toxicology"
+        - "toxicity"
+        - "biomonitoring"
+        - "biomarker"
+        - "health effect"
+        - "disease risk"
+        - "developmental toxicity"
+        - "reproductive toxicity"
+        - "neurotoxicity"
+        - "carcinogen"
+
+    # Remediation/monitoring terms
+    remediation:
+      weight: 1.0
+      terms:
+        - "remediation"
+        - "water treatment"
+        - "wastewater"
+        - "contamination"
+        - "pollutant"
+        - "environmental monitoring"
+        - "detection"
+        - "sensor"
+
+  MECH:
+    # Core biological terms
+    biology:
+      weight: 1.5
+      terms:
+        - "cell"
+        - "protein"
+        - "gene"
+        - "enzyme"
+        - "receptor"
+        - "signaling"
+        - "pathway"
+        - "molecular"
+        - "cellular"
+
+    # Specific mechanisms
+    mechanisms:
+      weight: 2.0
+      terms:
+        - "oxidative stress"
+        - "inflammation"
+        - "apoptosis"
+        - "epigenetic"
+        - "transcription"
+        - "metabolism"
+        - "immune response"
+        - "neuron"
+        - "mitochondria"
+
+  # Exclusion patterns (if found, don't classify as ENV/MECH)
+  exclusions:
+    - "reu site"
+    - "student travel"
+    - "conference"
+    - "workshop"
+    - "training grant"
+    - "equipment"
+    - "instrumentation"
+
+# =============================================================================
+# DECISION RULES
+# =============================================================================
+rules:
+  # If exposure + health terms both present -> ENV_HEALTH
+  - name: "exposure_plus_health"
+    condition: "keywords.ENV.exposure >= 1 AND keywords.ENV.health >= 1"
+    assign: "ENV_HEALTH"
+    confidence: 0.9
+
+  # If exposure only (no health) -> ENV_NOHEALTH
+  - name: "exposure_only"
+    condition: "keywords.ENV.exposure >= 1 AND keywords.ENV.health == 0"
+    assign: "ENV_NOHEALTH"
+    confidence: 0.8
+
+  # Strong biological focus -> MECH
+  - name: "strong_bio"
+    condition: "keywords.MECH.biology >= 3 OR keywords.MECH.mechanisms >= 2"
+    assign: "MECH"
+    confidence: 0.8
+
+  # Directorate-based (NSF specific)
+  - name: "bio_directorate"
+    condition: "source.directorate == 'BIO' AND NOT exclusions"
+    assign: "MECH"
+    confidence: 0.7
+
+  # Exclusions -> OTHER
+  - name: "excluded"
+    condition: "exclusions >= 1"
+    assign: "OTHER"
+    confidence: 0.95
+
+# =============================================================================
+# HUMAN REVIEW WORKFLOW
+# =============================================================================
+review:
+  # When to trigger human review
+  triggers:
+    - confidence_below: 0.5
+    - conflicting_signals: true  # e.g., high ENV and high MECH scores
+
+  # Batch configuration
+  batches:
+    size: 50
+    output_dir: "review_batches"
+    format: "csv"
+
+  # Fields to show reviewer
+  display_fields:
+    - "id"
+    - "title"
+    - "abstract"  # truncated to 500 chars
+    - "assigned_category"
+    - "confidence"
+    - "keyword_hits"
+
+  # Review columns for human to fill
+  review_columns:
+    - name: "correct_category"
+      type: "select"
+      options: ["ENV_HEALTH", "ENV_NOHEALTH", "MECH", "OTHER"]
+    - name: "notes"
+      type: "text"
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  dir: "outputs"
+
+  # Main classified output
+  classified:
+    json: true
+    csv: true
+    include_confidence: true
+    include_keyword_hits: true
+
+  # Summary statistics
+  summary:
+    by_category: true
+    by_directorate: true
+    by_confidence_band: true
+
+  # Review batches
+  review_batches:
+    dir: "review_batches"
+    prefix: "batch_"

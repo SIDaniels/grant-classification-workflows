@@ -1,0 +1,50 @@
+==> /Users/sarahdaniels/Documents/federal_grants/nsf/nsf_exposure_mechanism_crosswalk.csv <==
+exposure_category,exposure_grant_count,mechanism_category,mechanism_total_grants,mechanism_with_exposure,coverage_pct,gap_status
+Water_Contamination,691,Oxidative_Stress,7902,347,50.2,COVERED
+Water_Contamination,691,Inflammation,267,1,0.1,MODERATE GAP
+Water_Contamination,691,DNA_Damage,339,3,0.4,MODERATE GAP
+Water_Contamination,691,Epigenetics,233,0,0.0,TRUE GAP
+Water_Contamination,691,Mitochondrial,147,1,0.1,MODERATE GAP
+Water_Contamination,691,Endocrine_Mechanism,173,4,0.6,MODERATE GAP
+Water_Contamination,691,Neurotoxicity,400,0,0.0,TRUE GAP
+Water_Contamination,691,Reproductive,33,3,0.4,PARTIAL GAP
+Water_Contamination,691,Microbiome,212,12,1.7,MODERATE GAP
+Water_Contamination,691,Apoptosis,56,1,0.1,MODERATE GAP
+Air_Pollution,267,Oxidative_Stress,7902,169,63.3,COVERED
+Air_Pollution,267,Inflammation,267,3,1.1,MODERATE GAP
+Air_Pollution,267,DNA_Damage,339,0,0.0,TRUE GAP
+Air_Pollution,267,Epigenetics,233,0,0.0,TRUE GAP
+Air_Pollution,267,Mitochondrial,147,0,0.0,TRUE GAP
+Air_Pollution,267,Endocrine_Mechanism,173,4,1.5,MODERATE GAP
+Air_Pollution,267,Neurotoxicity,400,0,0.0,TRUE GAP
+Air_Pollution,267,Reproductive,33,0,0.0,TRUE GAP
+Air_Pollution,267,Microbiome,212,1,0.4,MODERATE GAP
+Air_Pollution,267,Apoptosis,56,0,0.0,TRUE GAP
+Climate_Health,155,Oxidative_Stress,7902,84,54.2,COVERED
+Climate_Health,155,Inflammation,267,0,0.0,TRUE GAP
+Climate_Health,155,DNA_Damage,339,1,0.6,MODERATE GAP
+Climate_Health,155,Epigenetics,233,1,0.6,MODERATE GAP
+Climate_Health,155,Mitochondrial,147,0,0.0,TRUE GAP
+Climate_Health,155,Endocrine_Mechanism,173,0,0.0,TRUE GAP
+Climate_Health,155,Neurotoxicity,400,0,0.0,TRUE GAP
+Climate_Health,155,Reproductive,33,2,1.3,PARTIAL GAP
+Climate_Health,155,Microbiome,212,0,0.0,TRUE GAP
+Climate_Health,155,Apoptosis,56,0,0.0,TRUE GAP
+Heavy_Metals,118,Oxidative_Stress,7902,62,52.5,COVERED
+Heavy_Metals,118,Inflammation,267,0,0.0,TRUE GAP
+Heavy_Metals,118,DNA_Damage,339,0,0.0,TRUE GAP
+Heavy_Metals,118,Epigenetics,233,4,3.4,MODERATE GAP
+Heavy_Metals,118,Mitochondrial,147,0,0.0,TRUE GAP
+Heavy_Metals,118,Endocrine_Mechanism,173,1,0.8,MODERATE GAP
+Heavy_Metals,118,Neurotoxicity,400,1,0.8,MODERATE GAP
+Heavy_Metals,118,Reproductive,33,0,0.0,TRUE GAP
+Heavy_Metals,118,Microbiome,212,0,0.0,TRUE GAP
+Heavy_Metals,118,Apoptosis,56,0,0.0,TRUE GAP
+Microplastics,113,Oxidative_Stress,7902,69,61.1,COVERED
+Microplastics,113,Inflammation,267,0,0.0,TRUE GAP
+Microplastics,113,DNA_Damage,339,0,0.0,TRUE GAP
+Microplastics,113,Epigenetics,233,0,0.0,TRUE GAP
+Microplastics,113,Mitochondrial,147,0,0.0,TRUE GAP
+Microplastics,113,Endocrine_Mechanism,173,1,0.9,MODERATE GAP
+Microplastics,113,Neurotoxicity,400,0,0.0,TRUE GAP
+Microplastics,113,Reproductive,33,0,0.0,TRUE GAP
