@@ -1,0 +1,22 @@
+# Scoped .gitignore for climate_biotech_classification/
+# Prevents pipeline data and outputs from being accidentally committed to Sarah's repo.
+
+# Data inputs (source-of-truth lives in the colbey-derwin/climate-biotech-federal-grant-funding repo)
+data/
+
+# Pipeline outputs (rebuilt on every run, never meant to live in git)
+scripts/grant_classifier/output/
+
+# Large tabular files — should never be committed here
+*.csv
+*.xlsx
+
+# Classification/run logs
+*.log
+scripts/grant_classifier/output/*.json
+
+# macOS / editor noise
+.DS_Store
+.claude/
+*.pyc
+__pycache__/
